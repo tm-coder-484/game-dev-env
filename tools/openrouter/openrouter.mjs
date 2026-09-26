@@ -1,18 +1,18 @@
 #!/usr/bin/env node
-// OpenRouter CLI for game content: dialogue, quests, lore, item tables, concept
-// art and textures. One key, hundreds of models (Claude, GPT, Gemini, ...).
+// OpenRouter CLI for game text: dialogue, quests, lore, item tables.
+// One key, hundreds of models (Claude, GPT, Gemini, ...).
 //
 //   node tools/openrouter/openrouter.mjs chat "Write 3 barks for a nervous guard"
 //   node tools/openrouter/openrouter.mjs json "10 fantasy swords with name, damage, rarity, lore" --out data/swords.json
-//   node tools/openrouter/openrouter.mjs image "misty pine valley at dawn, concept art" --aspect 16:9 --out concept.png
-//   node tools/openrouter/openrouter.mjs texture "mossy cobblestone" --out godot/assets/cobble.png
-//   node tools/openrouter/openrouter.mjs models [filter] [--images]
+//   node tools/openrouter/openrouter.mjs models [filter]
+//
+// Images (concept art, HUDs, icons, textures, skies...) live in assets.mjs.
 //
 // Options: --model <id>  --system <text>  --max-tokens <n>  --out <file>
 // Env: OPENROUTER_API_KEY, OPENROUTER_MODEL, OPENROUTER_IMAGE_MODEL (see .env.example)
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, extname } from 'node:path';
-import { chat, DEFAULTS, ensureProxySupport, image, models } from './lib.mjs';
+import { dirname } from 'node:path';
+import { chat, DEFAULTS, ensureProxySupport, models } from './lib.mjs';
 
 ensureProxySupport();
 
@@ -36,8 +36,8 @@ function save(path, data) {
 }
 
 function usage() {
-  console.log(`usage: openrouter.mjs <chat|json|image|texture|models> [prompt] [--model id] [--out file]
-  defaults: text=${DEFAULTS.text}  image=${DEFAULTS.image}`);
+  console.log(`usage: openrouter.mjs <chat|json|models> [prompt] [--model id] [--out file]
+  default text model: ${DEFAULTS.text}   (images: node tools/openrouter/assets.mjs)`);
   process.exit(1);
 }
 
@@ -69,30 +69,12 @@ try {
       break;
     }
     case 'image':
-    case 'texture': {
-      if (!prompt) usage();
-      const fullPrompt =
-        cmd === 'texture'
-          ? `Seamless tileable PBR albedo texture of ${prompt}. Orthographic top-down view, flat even lighting, ` +
-            'no shadows, no perspective, no text, edges wrap perfectly.'
-          : prompt;
-      const images = await image(fullPrompt, {
-        model: opts.model,
-        aspectRatio: cmd === 'texture' ? '1:1' : (opts.aspect ?? '1:1'),
-        resolution: opts.resolution,
-        n: Number(opts.n ?? 1),
-      });
-      if (!images.length) throw new Error('model returned no images');
-      const out = opts.out ?? `${cmd}-${Date.now()}.png`;
-      images.forEach((img, i) => {
-        const ext = '.' + (img.mediaType.split('/')[1] ?? 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
-        const base = out.slice(0, out.length - extname(out).length);
-        save(images.length > 1 ? `${base}-${i + 1}${ext}` : base + ext, img.bytes);
-      });
+    case 'texture':
+      console.error(`images moved to assets.mjs, e.g.: node tools/openrouter/assets.mjs ${cmd === 'image' ? 'concept' : 'texture'} "${prompt}"`);
+      process.exit(1);
       break;
-    }
     case 'models': {
-      const list = await models({ output: opts.images ? 'image' : undefined });
+      const list = await models();
       const filter = (prompt || '').toLowerCase();
       for (const m of list.filter((m) => m.id.toLowerCase().includes(filter))) {
         const p = m.pricing ?? {};

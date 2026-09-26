@@ -17,4 +17,5 @@ case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) echo 'Add to your shell profile:
 
 python3 setup/fetch_godot_templates.py --version "$GODOT_VERSION" --platforms web,macos,windows,linux
 (cd web && npm install --no-fund --no-audit)
+(cd tools && npm install --no-fund --no-audit)
 echo "Done. Try: make godot-editor   or   make web-dev"

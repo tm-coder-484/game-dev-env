@@ -10,8 +10,6 @@
       canvas { display: block; }
       #hud { position: fixed; top: 12px; left: 16px; color: #fff; font-size: 14px; line-height: 1.5;
              text-shadow: 0 1px 3px #000; pointer-events: none; white-space: pre; }
-      #crosshair { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
-                   border-radius: 50%; background: rgba(255,255,255,.8); pointer-events: none; }
       #bubble { position: fixed; max-width: 360px; padding: 10px 14px; border-radius: 12px; font-size: 15px;
                 background: rgba(12,16,20,.82); color: #f3f5f7; transform: translate(-50%, -100%);
                 pointer-events: none; display: none; }
@@ -24,13 +22,12 @@
   </head>
   <body>
     <div id="hud">Loading…</div>
-    <div id="crosshair"></div>
     <div id="bubble"></div>
     <div id="start">
       <div>
         <h1>Click to play</h1>
         <p>WASD move · Mouse look · Space jump · Shift sprint</p>
-        <p>F flashlight · E talk to Mara · Esc release mouse</p>
+        <p>F flashlight · E talk to Mara · 1-5 / wheel items · Esc release mouse</p>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

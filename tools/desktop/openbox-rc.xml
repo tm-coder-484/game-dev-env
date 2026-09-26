@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal openbox config for the virtual desktop: click-to-focus, and every
+     app opens maximized with no title bar, so screenshots show only the app
+     and screen coordinates match what you see. -->
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+  <focus>
+    <focusNew>yes</focusNew>
+    <followMouse>no</followMouse>
+  </focus>
+  <placement><policy>Smart</policy></placement>
+  <theme><name>Clearlooks</name></theme>
+  <desktops><number>1</number></desktops>
+  <applications>
+    <application class="*" type="normal">
+      <decor>no</decor>
+      <maximized>yes</maximized>
+      <focus>yes</focus>
+    </application>
+  </applications>
+</openbox_config>

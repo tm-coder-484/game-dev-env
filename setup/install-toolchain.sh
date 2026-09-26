@@ -75,17 +75,20 @@ install_apt() {
     return 0
   fi
   if command -v xvfb-run >/dev/null 2>&1 && command -v ffmpeg >/dev/null 2>&1 \
+     && command -v xdotool >/dev/null 2>&1 && command -v openbox >/dev/null 2>&1 \
      && dpkg -s mesa-vulkan-drivers libgl1-mesa-dri >/dev/null 2>&1; then
     log "apt: system packages already installed"; return 0
   fi
-  log "apt: installing Xvfb, Mesa (software GL/Vulkan), audio stubs, ffmpeg..."
+  log "apt: installing Xvfb, Mesa (software GL/Vulkan), desktop automation, ffmpeg..."
   export DEBIAN_FRONTEND=noninteractive
   $SUDO apt-get update -qq >/dev/null 2>&1 || true
   # Runtime libs for Godot + Blender, a virtual display for screenshots/renders,
-  # llvmpipe/lavapipe so both engines can render without a GPU, and ffmpeg for
-  # turning Godot --write-movie captures / Blender frames into video.
+  # llvmpipe/lavapipe so both engines can render without a GPU, xdotool +
+  # openbox + x11-utils for desktop automation (tools/desktop), libnss3-tools
+  # so Chromium can trust a TLS-inspecting proxy, and ffmpeg for screenshots,
+  # screen recording and turning Godot --write-movie captures into video.
   $SUDO apt-get install -y -qq --no-install-recommends \
-    xvfb xauth unzip xz-utils zip ca-certificates \
+    xvfb xauth unzip xz-utils zip ca-certificates xdotool openbox x11-utils libnss3-tools \
     libgl1 libegl1 libglu1-mesa libgl1-mesa-dri libglx-mesa0 mesa-vulkan-drivers libvulkan1 \
     libx11-6 libxcursor1 libxinerama1 libxrandr2 libxi6 libxext6 libxfixes3 libxrender1 \
     libxxf86vm1 libxkbcommon0 libsm6 libice6 libfontconfig1 libdbus-1-3 \
@@ -271,7 +274,7 @@ case ":\$PATH:" in *":$BIN_DIR:"*) ;; *) export PATH="$BIN_DIR:\$PATH" ;; esac
 EOF
 
 log "summary:"
-for t in godot blender gltf-transform xvfb-run ffmpeg; do
+for t in godot blender gltf-transform xvfb-run xdotool ffmpeg; do
   if command -v "$t" >/dev/null 2>&1 || [ -x "$BIN_DIR/$t" ]; then printf '   ok       %s\n' "$t"; else printf '   MISSING  %s\n' "$t"; fi
 done
 [ -f "$TEMPLATE_DIR/version.txt" ] && printf '   ok       godot export templates (%s)\n' "$GODOT_TEMPLATE_PLATFORMS" \

@@ -21,8 +21,10 @@ command -v node >/dev/null && pass node "$(node --version)" || fail node "instal
 command -v python3 >/dev/null && pass python3 "$(python3 --version 2>&1)" || fail python3 "install Python 3.10+"
 command -v gltf-transform >/dev/null && pass gltf-transform "$(ver gltf-transform --version)" || warn gltf-transform "optional: npm i -g @gltf-transform/cli"
 command -v ffmpeg >/dev/null && pass ffmpeg "$(ffmpeg -version 2>/dev/null | head -1 | cut -d' ' -f1-3)" || warn ffmpeg "optional (video capture)"
-if [ -z "${DISPLAY:-}" ] && [ "$(uname)" = Linux ]; then
+if [ "$(uname)" = Linux ]; then
   command -v xvfb-run >/dev/null && pass xvfb-run "virtual display for screenshots" || warn xvfb-run "needed for headless screenshots (apt install xvfb)"
+  command -v xdotool >/dev/null && command -v openbox >/dev/null && pass "desktop automation" "xdotool + openbox" \
+    || warn "desktop automation" "apt install xdotool openbox x11-utils (or re-run setup/install-toolchain.sh)"
 fi
 
 echo "Godot export templates ($GODOT_VERSION)"
@@ -36,6 +38,7 @@ done
 
 echo "Project"
 [ -d web/node_modules ] && pass "web/node_modules" "installed" || fail "web/node_modules" "run: (cd web && npm install)"
+[ -d tools/node_modules ] && pass "tools/node_modules" "installed" || fail "tools/node_modules" "run: (cd tools && npm install)"
 [ -d godot/.godot ] && pass "godot import cache" "present" || warn "godot import cache" "run: make godot-import"
 
 echo "Network"

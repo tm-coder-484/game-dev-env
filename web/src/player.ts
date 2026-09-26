@@ -16,6 +16,14 @@ export class Player {
   private vy = 0;
   private grounded = false;
   private bob = 0;
+  // Stats shown on the HUD: sprinting drains stamina, hard landings cost health.
+  readonly maxHealth = 100;
+  readonly maxStamina = 100;
+  health = 100;
+  stamina = 100;
+  private regenDelay = 0;
+  private exhausted = false;
+  private fallSpeed = 0;
 
   static readonly EYE = 1.65;
   static readonly HALF_HEIGHT = 0.55;
@@ -63,10 +71,28 @@ export class Player {
     return this.keys.has(code);
   }
 
+  /** Returns whether the player may sprint this frame. */
+  private updateStamina(dt: number, wantsSprint: boolean): boolean {
+    const sprinting = wantsSprint && !this.exhausted && this.grounded;
+    if (sprinting) {
+      this.stamina = Math.max(0, this.stamina - 22 * dt);
+      this.regenDelay = 0.8;
+      this.exhausted = this.stamina <= 0;
+    } else if (this.regenDelay > 0) {
+      this.regenDelay -= dt;
+    } else {
+      this.stamina = Math.min(this.maxStamina, this.stamina + 16 * dt);
+      if (this.exhausted && this.stamina > this.maxStamina * 0.25) this.exhausted = false;
+    }
+    return sprinting;
+  }
+
   update(dt: number): void {
     const forward = Number(this.pressed('KeyW') || this.pressed('ArrowUp')) - Number(this.pressed('KeyS') || this.pressed('ArrowDown'));
     const strafe = Number(this.pressed('KeyD') || this.pressed('ArrowRight')) - Number(this.pressed('KeyA') || this.pressed('ArrowLeft'));
-    const speed = this.pressed('ShiftLeft') || this.pressed('ShiftRight') ? 8 : 4.5;
+    const moving = forward !== 0 || strafe !== 0;
+    const sprinting = this.updateStamina(dt, moving && (this.pressed('ShiftLeft') || this.pressed('ShiftRight')));
+    const speed = sprinting ? 8 : 4.5;
 
     const move = new THREE.Vector3(strafe, 0, -forward);
     if (move.lengthSq() > 0) move.normalize().multiplyScalar(speed * dt);
@@ -79,9 +105,14 @@ export class Player {
     }
     move.y = this.vy * dt;
 
+    const wasAirborne = !this.grounded;
+    this.fallSpeed = wasAirborne ? Math.max(this.fallSpeed, -this.vy) : 0;
     this.controller.computeColliderMovement(this.collider, move);
     const m = this.controller.computedMovement();
     this.grounded = this.controller.computedGrounded();
+    if (wasAirborne && this.grounded && this.fallSpeed > 9) {
+      this.health = Math.max(0, this.health - (this.fallSpeed - 9) * 8);
+    }
     const t = this.body.translation();
     this.body.setNextKinematicTranslation({ x: t.x + m.x, y: t.y + m.y, z: t.z + m.z });
 

@@ -12,7 +12,8 @@ XVFB    := $(if $(or $(DISPLAY),$(filter Darwin,$(shell uname))),,xvfb-run -a -s
 .DEFAULT_GOAL := help
 .PHONY: help setup doctor godot-import godot-editor godot-run godot-shot \
         export-web export-linux export-windows export-all serve-godot-web \
-        web-dev web-build web-preview web-shot rock preview convert assets ai-server clean
+        web-dev web-build web-preview web-shot rock preview convert assets ai-server clean \
+        play-native desktop-selftest hud-kit hud-placeholder
 
 help: ## list commands
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36mmake %-16s\033[0m %s\n", $$1, $$2}'
@@ -21,6 +22,7 @@ help: ## list commands
 setup: ## install Godot + templates, Blender, tools (Linux/WSL), npm deps, import
 	bash setup/install-toolchain.sh
 	cd web && npm install --no-fund --no-audit
+	cd tools && npm install --no-fund --no-audit
 	$(MAKE) godot-import
 
 doctor: ## check tools, templates, network and keys
@@ -88,6 +90,27 @@ assets: ## re-download the shared CC0 sky + ground textures from Poly Haven
 	python3 tools/assets/polyhaven.py hdri kloofendal_38d_partly_cloudy_puresky --res 1k --name sky.hdr --out $(PROJECT)/assets/shared/hdri
 	python3 tools/assets/polyhaven.py texture forrest_ground_01 --res 1k --maps diff,nor_gl,rough --out /tmp/ph
 	mkdir -p $(PROJECT)/assets/shared/textures/ground && cp /tmp/ph/forrest_ground_01/* $(PROJECT)/assets/shared/textures/ground/
+
+# ---------------------------------------------------- desktop automation ----
+DESK := node tools/desktop/desk.mjs
+play-native: export-linux ## run the native Linux build on the virtual desktop, walk forward, screenshot
+	$(DESK) kill all >/dev/null 2>&1 || true
+	$(DESK) launch "./$(BUILD)/linux/RealisticStarter.x86_64 --rendering-driver opengl3 --audio-driver Dummy" --wait Realistic
+	$(DESK) wait 3
+	$(DESK) click 640 360
+	$(DESK) key "w shift" --hold 2
+	$(DESK) shot $(SHOTS)/native.png
+	$(DESK) kill all
+
+desktop-selftest: export-linux ## check the desktop MCP server end to end against the native build
+	node tools/desktop/selftest.mjs
+
+# -------------------------------------------------------------- ai art ----
+hud-kit: ## generate the HUD kit with an image model (MODEL=any, REF=mockup.png)
+	node tools/openrouter/assets.mjs ui-kit $(if $(MODEL),--model "$(MODEL)") $(if $(REF),--ref $(REF))
+
+hud-placeholder: ## restore the vector placeholder HUD art
+	node tools/openrouter/assets.mjs ui-kit --placeholder
 
 # ------------------------------------------------------------------- ai ----
 ai-server: ## run the OpenRouter NPC backend on http://127.0.0.1:8787

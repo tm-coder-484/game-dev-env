@@ -3,6 +3,7 @@ extends CharacterBody3D
 ## Keyboard/mouse: WASD move, mouse look (click to capture), Space jump,
 ## Shift sprint, F flashlight, Esc release mouse.
 ## Gamepad: left stick move, right stick look, A jump, L3 sprint, Y flashlight.
+## Sprinting drains stamina; hard landings cost health (both shown on the HUD).
 
 @export var walk_speed := 4.5
 @export var sprint_speed := 8.0
@@ -13,6 +14,14 @@ extends CharacterBody3D
 @export var stick_sensitivity := 3.0
 @export var push_force := 1.5
 @export var head_bob_amount := 0.04
+@export var max_health := 100.0
+@export var max_stamina := 100.0
+@export var stamina_drain := 22.0 ## per second while sprinting
+@export var stamina_regen := 16.0 ## per second, after a short pause
+@export var safe_fall_speed := 9.0 ## landing faster than this hurts
+
+var health := max_health
+var stamina := max_stamina
 
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
@@ -21,6 +30,9 @@ extends CharacterBody3D
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _bob_time := 0.0
 var _head_height := 0.0
+var _regen_delay := 0.0
+var _exhausted := false
+var _fall_speed := 0.0
 
 
 func _ready() -> void:
@@ -56,14 +68,35 @@ func _physics_process(delta: float) -> void:
 
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var dir := (transform.basis * Vector3(input.x, 0, input.y)).normalized()
-	var speed := sprint_speed if Input.is_action_pressed("sprint") else walk_speed
+	var sprinting := _update_stamina(delta, Input.is_action_pressed("sprint") and input != Vector2.ZERO)
+	var speed := sprint_speed if sprinting else walk_speed
 	var accel := acceleration * (1.0 if is_on_floor() else air_control)
 	velocity.x = move_toward(velocity.x, dir.x * speed, accel * speed * delta)
 	velocity.z = move_toward(velocity.z, dir.z * speed, accel * speed * delta)
 
+	var was_airborne := not is_on_floor()
+	_fall_speed = maxf(_fall_speed, -velocity.y) if was_airborne else 0.0
 	move_and_slide()
+	if was_airborne and is_on_floor() and _fall_speed > safe_fall_speed:
+		health = maxf(0.0, health - (_fall_speed - safe_fall_speed) * 8.0)
 	_push_rigid_bodies()
 	_head_bob(delta)
+
+
+## Returns whether the player may sprint this frame.
+func _update_stamina(delta: float, wants_sprint: bool) -> bool:
+	var sprinting := wants_sprint and not _exhausted and is_on_floor()
+	if sprinting:
+		stamina = maxf(0.0, stamina - stamina_drain * delta)
+		_regen_delay = 0.8
+		_exhausted = stamina <= 0.0
+	elif _regen_delay > 0.0:
+		_regen_delay -= delta
+	else:
+		stamina = minf(max_stamina, stamina + stamina_regen * delta)
+		if _exhausted and stamina > max_stamina * 0.25:
+			_exhausted = false
+	return sprinting
 
 
 func _push_rigid_bodies() -> void:

@@ -1,0 +1,30 @@
+{
+  "description": "HUD elements used by both games (godot/scenes/hud.tscn and web/src/hud.ts). Regenerate with: node tools/openrouter/assets.mjs ui-kit",
+  "style": "Grounded, realistic survival-game UI: dark weathered gunmetal with thin worn brass trim, subtle scratches, soft inner shading. Crisp silhouette readable at small size. No text, letters or numbers.",
+  "out": "godot/assets/ui",
+  "elements": [
+    { "file": "hud/bar_frame.png", "size": [512, 64], "fit": "stretch", "aspect": "8:1",
+      "prompt": "Empty horizontal status bar frame for a game HUD: a long, thin rounded-rectangle border with a hollow, dark, semi-transparent interior. Front view, perfectly straight and centred, filling the width." },
+    { "file": "hud/bar_fill_health.png", "size": [488, 40], "fit": "stretch", "aspect": "8:1",
+      "prompt": "The fill strip of a horizontal health bar: a long, thin, glossy deep-red energy strip with a soft highlight along its top edge and slightly darker bottom. Flat front view, straight edges, filling the width." },
+    { "file": "hud/bar_fill_stamina.png", "size": [488, 40], "fit": "stretch", "aspect": "8:1", "key": "magenta",
+      "prompt": "The fill strip of a horizontal stamina bar: a long, thin, glossy warm amber-gold energy strip with a soft highlight along its top edge. Flat front view, straight edges, filling the width." },
+    { "file": "hud/slot.png", "size": [128, 128], "fit": "stretch", "aspect": "1:1",
+      "prompt": "A single square inventory hotbar slot frame with rounded corners and a dark, semi-transparent empty interior. Front view, centred, filling the canvas." },
+    { "file": "hud/slot_selected.png", "size": [128, 128], "fit": "stretch", "aspect": "1:1",
+      "prompt": "A single square inventory hotbar slot frame in its selected state: rounded corners, dark semi-transparent interior, and a bright warm glowing gold border. Front view, centred, filling the canvas." },
+    { "file": "hud/crosshair.png", "size": [64, 64], "fit": "contain", "aspect": "1:1", "useStyle": false,
+      "prompt": "A minimal first-person shooter crosshair reticle: small white centre dot with four short thin white ticks, each with a thin dark outline for contrast. Flat, centred." },
+    { "file": "icons/sword.png", "size": [128, 128], "fit": "contain", "aspect": "1:1", "icon": true,
+      "prompt": "Game inventory icon of a steel short sword, diagonal from bottom-left to top-right." },
+    { "file": "icons/pickaxe.png", "size": [128, 128], "fit": "contain", "aspect": "1:1", "icon": true,
+      "prompt": "Game inventory icon of an iron pickaxe with a wooden handle, diagonal." },
+    { "file": "icons/torch.png", "size": [128, 128], "fit": "contain", "aspect": "1:1", "icon": true,
+      "prompt": "Game inventory icon of a lit wooden torch with a warm flame." },
+    { "file": "icons/potion.png", "size": [128, 128], "fit": "contain", "aspect": "1:1", "icon": true, "key": "green",
+      "prompt": "Game inventory icon of a round glass flask filled with glowing red healing potion, cork stopper." },
+    { "file": "icons/map.png", "size": [128, 128], "fit": "contain", "aspect": "1:1", "icon": true,
+      "prompt": "Game inventory icon of a folded parchment map with a red route line." }
+  ],
+  "iconStyle": "Painterly realistic game inventory icon, single object centred with a little padding, three-quarter view, soft rim light, no background elements."
+}

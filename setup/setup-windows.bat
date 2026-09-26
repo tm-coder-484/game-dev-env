@@ -48,12 +48,15 @@ if defined PY (
 )
 
 echo.
-echo === Web template: npm install ===
+echo === npm install: web game + tools (AI asset pipeline) ===
 where npm >nul 2>&1
 if errorlevel 1 (
-  echo [!] npm not on PATH yet. Open a new terminal and run: cd web ^&^& npm install
+  echo [!] npm not on PATH yet. Open a new terminal and run: cd web ^&^& npm install ^&^& cd ..\tools ^&^& npm install
 ) else (
   pushd web
+  call npm install --no-fund --no-audit
+  popd
+  pushd tools
   call npm install --no-fund --no-audit
   popd
 )
@@ -64,6 +67,7 @@ echo  Godot editor : run "godot" or use the Start menu, then open godot\project.
 echo  Web game     : cd web ^&^& npm run dev    then open http://localhost:5173
 echo  AI NPC server: set OPENROUTER_API_KEY=sk-or-...  then  node tools\openrouter\server.mjs
 echo  Blender      : blender -b --factory-startup -P tools\blender\generate_rock.py -- rock.glb
+echo  AI HUD art   : node tools\openrouter\assets.mjs ui-kit --model gpt-image-2.5-flare
 echo.
 echo If a command is "not recognized", close this window and open a new terminal.
 pause

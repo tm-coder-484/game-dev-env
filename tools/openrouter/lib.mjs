@@ -6,7 +6,7 @@ export const API = process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api
 export const DEFAULTS = {
   text: process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-5',
   npc: process.env.OPENROUTER_NPC_MODEL ?? 'deepseek/deepseek-v4.1-flash',
-  image: process.env.OPENROUTER_IMAGE_MODEL ?? 'google/gemini-3.1-flash-image',
+  image: process.env.OPENROUTER_IMAGE_MODEL ?? 'openai/gpt-image-2.5-flare',
 };
 
 /**
@@ -24,7 +24,7 @@ export function ensureProxySupport() {
   process.exit(r.status ?? 1);
 }
 
-function headers() {
+export function headers() {
   const h = {
     'Content-Type': 'application/json',
     // Optional attribution headers; they show up in your OpenRouter dashboard.
@@ -68,19 +68,6 @@ export async function chat(messages, { model = DEFAULTS.text, maxTokens = 1024, 
     ...(json && { response_format: { type: 'json_object' } }),
   });
   return { text: data.choices?.[0]?.message?.content ?? '', model: data.model, usage: data.usage };
-}
-
-/** Image generation via the Image API. Returns [{ bytes: Buffer, mediaType }]. */
-export async function image(prompt, { model = DEFAULTS.image, aspectRatio = '1:1', resolution, n = 1, format } = {}) {
-  const data = await call('/images', {
-    model,
-    prompt,
-    n,
-    aspect_ratio: aspectRatio,
-    ...(resolution && { resolution }),
-    ...(format && { output_format: format }),
-  });
-  return (data.data ?? []).map((d) => ({ bytes: Buffer.from(d.b64_json, 'base64'), mediaType: d.media_type ?? 'image/png' }));
 }
 
 /** Public model list (no key needed). */

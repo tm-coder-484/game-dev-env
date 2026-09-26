@@ -39,7 +39,7 @@ func _parse_args() -> void:
 
 
 func _process(_delta: float) -> void:
-	_hud.text = "%d FPS  ·  %s (%s)\nClick: capture mouse · WASD · Space · Shift · F light · E talk" % [
+	_hud.text = "%d FPS  ·  %s (%s)\nClick: capture mouse · WASD · Space · Shift sprint · F light · E talk · 1-5 items" % [
 		Engine.get_frames_per_second(),
 		RenderingServer.get_current_rendering_method(),
 		RenderingServer.get_current_rendering_driver_name(),

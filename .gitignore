@@ -2,10 +2,11 @@
 godot/.godot/
 godot/*.tmp
 
-# Builds
+# Builds (build/shots/ holds screenshots and desktop recordings)
 build/
 web/dist/
 web/node_modules/
+tools/node_modules/
 web/screenshot.png
 
 # Secrets - copy .env.example to .env

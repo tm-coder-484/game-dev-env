@@ -8,6 +8,7 @@
 [ext_resource type="Texture2D" path="res://assets/shared/textures/ground/rough.jpg" id="6_grough"]
 [ext_resource type="PackedScene" path="res://assets/shared/models/rock.glb" id="7_rock"]
 [ext_resource type="Script" path="res://scripts/ai_npc.gd" id="8_npc"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="9_hud"]
 
 [sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_sky"]
 panorama = ExtResource("3_sky")
@@ -104,3 +105,5 @@ scale = Vector3(3.5, 2.8, 3.2)
 position = Vector3(3.2, 0, 2.5)
 rotation_degrees = Vector3(0, 30, 0)
 script = ExtResource("8_npc")
+
+[node name="HUD" parent="." instance=ExtResource("9_hud")]

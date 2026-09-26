@@ -11,6 +11,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { ASSETS } from './assets';
 import { Player } from './player';
 import { Npc } from './npc';
+import { Hud } from './hud';
 
 declare global {
   interface Window { __frames?: number } // rendered-frame counter, read by headless tests
@@ -149,6 +150,7 @@ for (let layer = 0; layer < 4; layer++) {
 // ------------------------------------------------------ player and NPC ------
 const player = new Player(RAPIER, world, new THREE.Vector3(0, 0, 7), renderer.domElement);
 scene.add(player.camera);
+const hudUi = new Hud();
 const npc = new Npc(new THREE.Vector3(3.2, 0, 2.5));
 scene.add(npc.mesh);
 world.createCollider(RAPIER.ColliderDesc.capsule(0.575, 0.3).setTranslation(3.2, 0.875, 2.5));
@@ -199,6 +201,7 @@ renderer.setAnimationLoop((time) => {
     mesh.quaternion.copy(body.rotation());
   }
   npc.update(player.position, player.camera, talkPressed);
+  hudUi.update(dt, player);
   talkPressed = false;
 
   if (composer) composer.render();

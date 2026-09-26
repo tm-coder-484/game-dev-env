@@ -1,0 +1,12 @@
+{
+  "name": "game-dev-tools",
+  "private": true,
+  "type": "module",
+  "description": "Desktop automation (computer use) MCP server + OpenRouter asset pipeline",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "sharp": "^0.35.4",
+    "zod": "^4.6.5"
+  }
+}
