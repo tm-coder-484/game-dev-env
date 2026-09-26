@@ -1,0 +1,58 @@
+# Publishes both browser builds to GitHub Pages:
+#   https://<user>.github.io/<repo>/        -> landing page
+#   .../godot/                              -> Godot Web export
+#   .../three/                              -> three.js game
+# One-time: repo Settings -> Pages -> Source: "GitHub Actions".
+# Then: Actions tab -> "deploy to pages" -> Run workflow.
+name: deploy to pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Install Godot + web templates
+        run: |
+          GODOT_TEMPLATE_PLATFORMS=web INSTALL_BLENDER=0 INSTALL_GLTF_TOOLS=0 INSTALL_APT_PACKAGES=0 bash setup/install-toolchain.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Build
+        run: |
+          godot --headless --path godot --import
+          make export-web
+          (cd web && npm ci && npm run build)
+          mkdir -p site
+          cp -r build/web site/godot
+          cp -r web/dist site/three
+          cat > site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>Game builds</title>
+          <style>body{font:18px system-ui;margin:3rem;background:#0b0f14;color:#e8edf2}a{color:#8fd3ff}</style>
+          <h1>Game builds</h1>
+          <p><a href="godot/">Godot 4 (WebGL 2)</a></p>
+          <p><a href="three/">three.js + Rapier</a></p>
+          HTML
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

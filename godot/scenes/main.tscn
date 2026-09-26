@@ -1,0 +1,106 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="2_player"]
+[ext_resource type="Texture2D" path="res://assets/shared/hdri/sky.hdr" id="3_sky"]
+[ext_resource type="Texture2D" path="res://assets/shared/textures/ground/diff.jpg" id="4_gdiff"]
+[ext_resource type="Texture2D" path="res://assets/shared/textures/ground/nor_gl.jpg" id="5_gnor"]
+[ext_resource type="Texture2D" path="res://assets/shared/textures/ground/rough.jpg" id="6_grough"]
+[ext_resource type="PackedScene" path="res://assets/shared/models/rock.glb" id="7_rock"]
+[ext_resource type="Script" path="res://scripts/ai_npc.gd" id="8_npc"]
+
+[sub_resource type="PanoramaSkyMaterial" id="PanoramaSkyMaterial_sky"]
+panorama = ExtResource("3_sky")
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("PanoramaSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 2
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+reflected_light_source = 2
+tonemap_mode = 3
+tonemap_exposure = 0.8
+tonemap_white = 6.0
+ssr_enabled = true
+ssao_enabled = true
+ssao_intensity = 1.5
+ssil_enabled = true
+sdfgi_enabled = true
+sdfgi_use_occlusion = true
+glow_enabled = true
+glow_bloom = 0.03
+fog_enabled = true
+fog_light_color = Color(0.72, 0.78, 0.86, 1)
+fog_density = 0.0008
+fog_aerial_perspective = 0.6
+fog_sky_affect = 0.0
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.008
+volumetric_fog_albedo = Color(0.9, 0.92, 0.95, 1)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_texture = ExtResource("4_gdiff")
+roughness_texture = ExtResource("6_grough")
+normal_enabled = true
+normal_texture = ExtResource("5_gnor")
+uv1_scale = Vector3(80, 80, 80)
+texture_filter = 5
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+material = SubResource("StandardMaterial3D_ground")
+size = Vector2(200, 200)
+
+[sub_resource type="WorldBoundaryShape3D" id="WorldBoundaryShape3D_ground"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_main")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-38, 35, 0)
+light_color = Color(1, 0.96, 0.9, 1)
+light_energy = 1.1
+light_angular_distance = 0.6
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+
+[node name="Ground" type="StaticBody3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="Ground"]
+mesh = SubResource("PlaneMesh_ground")
+
+[node name="Shape" type="CollisionShape3D" parent="Ground"]
+shape = SubResource("WorldBoundaryShape3D_ground")
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+position = Vector3(0, 0, 7)
+
+[node name="Rocks" type="Node3D" parent="."]
+
+[node name="Rock1" parent="Rocks" instance=ExtResource("7_rock")]
+position = Vector3(-3.5, -0.15, 1)
+rotation_degrees = Vector3(0, 25, 0)
+
+[node name="Rock2" parent="Rocks" instance=ExtResource("7_rock")]
+position = Vector3(2.8, -0.1, 0.5)
+rotation_degrees = Vector3(0, 140, 0)
+scale = Vector3(0.6, 0.6, 0.6)
+
+[node name="Rock3" parent="Rocks" instance=ExtResource("7_rock")]
+position = Vector3(9, -0.3, -12)
+rotation_degrees = Vector3(0, 290, 8)
+scale = Vector3(2.6, 2.2, 2.6)
+
+[node name="Rock4" parent="Rocks" instance=ExtResource("7_rock")]
+position = Vector3(-12, -0.25, -16)
+rotation_degrees = Vector3(0, 70, -6)
+scale = Vector3(3.5, 2.8, 3.2)
+
+[node name="Mara" type="Node3D" parent="."]
+position = Vector3(3.2, 0, 2.5)
+rotation_degrees = Vector3(0, 30, 0)
+script = ExtResource("8_npc")

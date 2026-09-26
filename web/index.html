@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Realistic Web Starter</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%231d2b36'/%3E%3Cpath d='M0 13l5-6 3 3 2-2 6 5v3H0z' fill='%235b7f5e'/%3E%3C/svg%3E" />
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f14; font-family: system-ui, sans-serif; }
+      canvas { display: block; }
+      #hud { position: fixed; top: 12px; left: 16px; color: #fff; font-size: 14px; line-height: 1.5;
+             text-shadow: 0 1px 3px #000; pointer-events: none; white-space: pre; }
+      #crosshair { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px;
+                   border-radius: 50%; background: rgba(255,255,255,.8); pointer-events: none; }
+      #bubble { position: fixed; max-width: 360px; padding: 10px 14px; border-radius: 12px; font-size: 15px;
+                background: rgba(12,16,20,.82); color: #f3f5f7; transform: translate(-50%, -100%);
+                pointer-events: none; display: none; }
+      #start { position: fixed; inset: 0; display: grid; place-items: center; color: #fff; cursor: pointer;
+               background: radial-gradient(ellipse at center, rgba(0,0,0,.25), rgba(0,0,0,.7)); }
+      #start h1 { margin: 0 0 8px; font-weight: 600; letter-spacing: .02em; }
+      #start p { margin: 4px 0; opacity: .85; text-align: center; }
+      #start.hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="hud">Loading…</div>
+    <div id="crosshair"></div>
+    <div id="bubble"></div>
+    <div id="start">
+      <div>
+        <h1>Click to play</h1>
+        <p>WASD move · Mouse look · Space jump · Shift sprint</p>
+        <p>F flashlight · E talk to Mara · Esc release mouse</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

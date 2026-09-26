@@ -1,0 +1,15 @@
+* text=auto
+*.sh   text eol=lf
+*.gd   text eol=lf
+*.bat  text eol=crlf
+
+# Binary assets. When these start adding up, switch them to Git LFS:
+#   git lfs install && git lfs track "*.glb" "*.hdr" "*.exr" "*.blend" "*.png" "*.jpg"
+*.glb   binary
+*.hdr   binary
+*.exr   binary
+*.blend binary
+*.png   binary
+*.jpg   binary
+*.ogg   binary
+*.wav   binary

@@ -1,0 +1,65 @@
+# Builds every target on each push/PR and uploads them as downloadable artifacts:
+#   godot-web, godot-linux, godot-windows, three-web (+ a headless screenshot).
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  godot:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot + export templates
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/gamedev
+            ~/.local/share/godot/export_templates
+          key: godot-${{ runner.os }}-${{ hashFiles('setup/install-toolchain.sh') }}
+
+      - name: Install Godot + export templates
+        run: |
+          INSTALL_BLENDER=0 INSTALL_GLTF_TOOLS=0 INSTALL_APT_PACKAGES=0 bash setup/install-toolchain.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Import assets
+        run: godot --headless --path godot --import
+
+      - name: Export Web, Linux, Windows
+        run: make export-all
+
+      - uses: actions/upload-artifact@v4
+        with: { name: godot-web, path: build/web }
+      - uses: actions/upload-artifact@v4
+        with: { name: godot-linux, path: build/linux }
+      - uses: actions/upload-artifact@v4
+        with: { name: godot-windows, path: build/windows }
+
+  three:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Headless browser smoke test
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/screenshot.mjs dist ../build/three-web.png 15000
+      - uses: actions/upload-artifact@v4
+        with: { name: three-web, path: web/dist }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: three-web-screenshot, path: build/three-web.png, if-no-files-found: ignore }
