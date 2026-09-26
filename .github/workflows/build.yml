@@ -57,7 +57,7 @@ jobs:
       - name: Headless browser smoke test
         run: |
           npx playwright install --with-deps chromium
-          node scripts/screenshot.mjs dist ../build/three-web.png 15000
+          node scripts/screenshot.mjs 'dist?low' ../build/three-web.png 10000
       - uses: actions/upload-artifact@v4
         with: { name: three-web, path: web/dist }
       - uses: actions/upload-artifact@v4
