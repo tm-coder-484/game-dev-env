@@ -1,0 +1,66 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Environment" path="res://game/world/environment.tres" id="1_env"]
+[ext_resource type="Script" path="res://game/world/day_night.gd" id="2_daynight"]
+[ext_resource type="Script" path="res://game/world/terrain.gd" id="3_terrain"]
+[ext_resource type="Script" path="res://game/world/grass.gd" id="4_grass"]
+[ext_resource type="Script" path="res://game/debug/shot.gd" id="5_shot"]
+[ext_resource type="Script" path="res://game/world/water.gd" id="6_water"]
+[ext_resource type="Script" path="res://game/world/foliage.gd" id="7_foliage"]
+[ext_resource type="Script" path="res://game/world/props.gd" id="8_props"]
+[ext_resource type="Script" path="res://game/world/world.gd" id="9_world"]
+[ext_resource type="Script" path="res://game/enemies/spawner.gd" id="10_spawner"]
+[ext_resource type="Script" path="res://game/systems/ambience.gd" id="11_ambience"]
+
+[node name="World" type="Node3D"]
+script = ExtResource("9_world")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("1_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+light_angular_distance = 0.5
+shadow_enabled = true
+shadow_bias = 0.04
+shadow_normal_bias = 1.2
+directional_shadow_max_distance = 260.0
+directional_shadow_split_1 = 0.06
+directional_shadow_split_2 = 0.18
+directional_shadow_split_3 = 0.45
+directional_shadow_blend_splits = true
+
+[node name="Moon" type="DirectionalLight3D" parent="."]
+light_color = Color(0.62, 0.72, 1, 1)
+light_energy = 0.2
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+
+[node name="DayNight" type="Node" parent="." node_paths=PackedStringArray("sun", "moon", "world_environment")]
+script = ExtResource("2_daynight")
+sun = NodePath("../Sun")
+moon = NodePath("../Moon")
+world_environment = NodePath("../WorldEnvironment")
+
+[node name="Terrain" type="Node3D" parent="."]
+script = ExtResource("3_terrain")
+
+[node name="Grass" type="Node3D" parent="."]
+script = ExtResource("4_grass")
+
+[node name="Foliage" type="Node3D" parent="."]
+script = ExtResource("7_foliage")
+
+[node name="Props" type="Node3D" parent="."]
+script = ExtResource("8_props")
+
+[node name="Water" type="Node3D" parent="."]
+script = ExtResource("6_water")
+
+[node name="Spawner" type="Node" parent="."]
+script = ExtResource("10_spawner")
+
+[node name="Ambience" type="Node" parent="."]
+script = ExtResource("11_ambience")
+
+[node name="Shot" type="Node" parent="."]
+script = ExtResource("5_shot")

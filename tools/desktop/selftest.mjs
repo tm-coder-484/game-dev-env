@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const GAME = join(ROOT, 'build/linux/RealisticStarter.x86_64');
+const GAME = join(ROOT, 'build/linux/Hollowvale.x86_64');
 if (!existsSync(GAME)) {
   console.error(`missing ${GAME} - run: make export-linux`);
   process.exit(1);
@@ -38,8 +38,8 @@ try {
   const { tools } = await client.listTools();
   console.log(`tools: ${tools.length} (${tools.map((t) => t.name).slice(0, 4).join(', ')}, ...)`);
   await call('desktop_launch', {
-    command: `${GAME} --rendering-driver opengl3 --audio-driver Dummy`,
-    wait_for: 'Realistic',
+    command: `${GAME} --rendering-driver opengl3 --audio-driver Dummy -- --play`,
+    wait_for: 'Hollowvale',
   });
   await call('desktop_wait', { seconds: 3 });
   const before = image(await call('desktop_screenshot'));

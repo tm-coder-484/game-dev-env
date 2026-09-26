@@ -4,9 +4,17 @@ Game-dev monorepo: a Godot 4.7 project (desktop and Web), a three.js + Rapier
 browser game, headless Blender tools, and OpenRouter AI tools. Both games share
 their assets from `godot/assets/shared/`.
 
+The Godot project's main scene is **Hollowvale** (`godot/game/world/world.tscn`), an open-world survival
+game: generated island terrain, instanced grass/trees/props, day/night, wolves and night-time Hollows,
+crafting and a Minecraft-style survival HUD. Game code lives in `godot/game/` (world, player, enemies, ui,
+systems, debug); the old starter sandbox is `scenes/main.tscn`.
+
 ## Commands
 
 - `make doctor`: check the toolchain, export templates, network and keys. Run it first if anything fails.
+- `make selftest`: headless Hollowvale gameplay test (gather, craft, chop, mine, combat, survival, save). Must print 17/17.
+- `make world`, `make terrain-textures`, `make trees`, `make props`, `make creatures`, `make sfx`, `make icons`: regenerate
+  Hollowvale's assets (Blender's numpy runs the generators; icons cost OpenRouter credits).
 - `make setup`: install everything (idempotent). The SessionStart hook already does this in cloud sessions.
 - `make godot-import`: run after adding or changing files under `godot/`.
 - `make export-all`: Godot Web, Linux and Windows builds into `build/`.
@@ -23,7 +31,12 @@ their assets from `godot/assets/shared/`.
 
 ## Verifying changes (do this, don't guess)
 
-- **Godot scripts or scenes:** `godot --headless --path godot --quit-after 30` must print no `SCRIPT ERROR`/`ERROR` lines.
+- **Godot scripts or scenes:** `godot --headless --path godot --quit-after 30` must print no `SCRIPT ERROR`/`ERROR` lines
+  (add `-- --play` to also start a game). Gameplay changes: `make selftest`.
+- **Hollowvale screenshots:** `godot --path godot -- --play --preview --frames=12 --screenshot=/abs/out.png`
+  (`--preview` = cheap shadows/AA for the CPU renderer, ~10 s; without it ~3-10 min). Free camera:
+  `--cam=x,z,height,yaw,pitch`; also `--time=H`, `--spawn=wolf:2,hollow:1`, `--freeze`, `--give=bow,arrow:10`,
+  `--stats=hp,hunger,thirst,warmth`, `--ui=craft|map`. Run under `xvfb-run -a`.
   For visuals, run `make godot-shot` and Read `build/shots/godot.png`.
   Forward+ on the CPU renderer is slow (~40–100 s per shot). For a quick look, add `--rendering-driver opengl3`,
   which gives the Compatibility renderer (what Web uses).
@@ -53,6 +66,10 @@ their assets from `godot/assets/shared/`.
 - HUD art slots and sizes are defined once in `tools/openrouter/presets/hud-kit.json`.
   Godot (`scenes/hud.tscn`) and web (`web/src/hud.ts`) assume those sizes: bars 512×64 frame with a 488×40 fill at (12,12), slots 128², icons 128².
 - Don't commit `build/`, `web/dist/`, `godot/.godot/` or `.env`.
+- Hollowvale: static `main` singletons (`Terrain.main`, `Foliage.main`, `Props.main`, `DayNight.main`) and the
+  `Game` autoload connect systems. Bodies created through `PhysicsServer3D` must set their collision layer/mask
+  explicitly (Jolt). The terrain heightfield splits quads along the (1,0)-(0,1) diagonal; keep
+  `terrain_common.gdshaderinc` and `Terrain.height_at` in step with it.
 
 ## Environment notes (cloud)
 

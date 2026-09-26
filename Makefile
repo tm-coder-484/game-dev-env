@@ -13,7 +13,7 @@ XVFB    := $(if $(or $(DISPLAY),$(filter Darwin,$(shell uname))),,xvfb-run -a -s
 .PHONY: help setup doctor godot-import godot-editor godot-run godot-shot \
         export-web export-linux export-windows export-all serve-godot-web \
         web-dev web-build web-preview web-shot rock preview convert assets ai-server clean \
-        play-native desktop-selftest hud-kit hud-placeholder
+        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons sfx
 
 help: ## list commands
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36mmake %-16s\033[0m %s\n", $$1, $$2}'
@@ -38,6 +38,9 @@ godot-editor: ## open the Godot editor (needs a desktop)
 godot-run: ## play the Godot game
 	$(GODOT) --path $(PROJECT)
 
+selftest: ## play the survival loop headlessly (gather, craft, fight, survive) and report PASS/FAIL
+	$(GODOT) --headless --path $(PROJECT) -- --selftest
+
 godot-shot: ## render a Godot screenshot headlessly -> build/shots/godot.png
 	@mkdir -p $(SHOTS)
 	$(XVFB) $(GODOT) --path $(PROJECT) --audio-driver Dummy --resolution 1280x720 -- --screenshot=$(abspath $(SHOTS))/godot.png --frames=90
@@ -48,11 +51,11 @@ export-web: ## export Godot game for browsers -> build/web
 
 export-linux: ## export Godot game for Linux -> build/linux
 	@mkdir -p $(BUILD)/linux
-	$(GODOT) --headless --path $(PROJECT) --export-release "Linux" ../$(BUILD)/linux/RealisticStarter.x86_64
+	$(GODOT) --headless --path $(PROJECT) --export-release "Linux" ../$(BUILD)/linux/Hollowvale.x86_64
 
 export-windows: ## export Godot game for Windows -> build/windows
 	@mkdir -p $(BUILD)/windows
-	$(GODOT) --headless --path $(PROJECT) --export-release "Windows" ../$(BUILD)/windows/RealisticStarter.exe
+	$(GODOT) --headless --path $(PROJECT) --export-release "Windows" ../$(BUILD)/windows/Hollowvale.exe
 
 export-all: export-web export-linux export-windows ## all three exports
 
@@ -72,6 +75,28 @@ web-preview: web-build ## serve web/dist on http://localhost:4173
 web-shot: web-build ## headless-browser smoke test + screenshot -> build/shots/web.png
 	@mkdir -p $(SHOTS)
 	cd web && node scripts/screenshot.mjs dist $(abspath $(SHOTS))/web.png 15000
+
+# ----------------------------------------------------- hollowvale assets ----
+world: ## regenerate the island (heightmap, erosion, masks, map): make world SEED=7
+	$(BLENDER) --python-exit-code 1 -P tools/world/build_world.py -- --seed $(SEED)
+
+terrain-textures: ## re-pack the terrain texture arrays from Poly Haven
+	$(BLENDER) --python-exit-code 1 -P tools/world/pack_textures.py
+
+trees: ## regenerate the tree and bush meshes
+	$(BLENDER) --python-exit-code 1 -P tools/blender/generate_trees.py -- $(PROJECT)/game/world/models/trees.glb
+
+props: ## re-download and decimate the Poly Haven rocks, logs and plants
+	$(BLENDER) --python-exit-code 1 -P tools/blender/build_props.py
+
+creatures: ## regenerate the wolf and Hollow meshes and rigs
+	$(BLENDER) --python-exit-code 1 -P tools/blender/generate_creatures.py -- $(PROJECT)/game/enemies/models
+
+sfx: ## rebuild the sound effects (Kenney CC0 + synthesised)
+	$(BLENDER) --python-exit-code 1 -P tools/audio/make_sfx.py
+
+icons: ## generate missing item/HUD icons with an OpenRouter image model
+	bash tools/openrouter/make_item_icons.sh
 
 # -------------------------------------------------------------- blender ----
 SEED ?= 7
@@ -95,7 +120,7 @@ assets: ## re-download the shared CC0 sky + ground textures from Poly Haven
 DESK := node tools/desktop/desk.mjs
 play-native: export-linux ## run the native Linux build on the virtual desktop, walk forward, screenshot
 	$(DESK) kill all >/dev/null 2>&1 || true
-	$(DESK) launch "./$(BUILD)/linux/RealisticStarter.x86_64 --rendering-driver opengl3 --audio-driver Dummy" --wait Realistic
+	$(DESK) launch "./$(BUILD)/linux/Hollowvale.x86_64 --rendering-driver opengl3 --audio-driver Dummy -- --play" --wait Hollowvale
 	$(DESK) wait 3
 	$(DESK) click 640 360
 	$(DESK) key "w shift" --hold 2

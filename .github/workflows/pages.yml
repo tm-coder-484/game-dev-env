@@ -38,11 +38,12 @@ jobs:
           cp -r build/web site/godot
           cp -r web/dist site/three
           cat > site/index.html <<'HTML'
-          <!doctype html><meta charset="utf-8"><title>Game builds</title>
+          <!doctype html><meta charset="utf-8"><title>Hollowvale</title>
           <style>body{font:18px system-ui;margin:3rem;background:#0b0f14;color:#e8edf2}a{color:#8fd3ff}</style>
-          <h1>Game builds</h1>
-          <p><a href="godot/">Godot 4 (WebGL 2)</a></p>
-          <p><a href="three/">three.js + Rapier</a></p>
+          <h1>Hollowvale</h1>
+          <p>An open-world survival game. <a href="godot/">Play in the browser</a> (WebGL 2, ~115 MB first load)
+          or <a href="godot/?play">skip the title screen</a>.</p>
+          <p>Starter demo: <a href="three/">three.js + Rapier</a></p>
           HTML
       - uses: actions/upload-pages-artifact@v3
         with: { path: site }

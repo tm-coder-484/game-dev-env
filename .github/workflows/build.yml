@@ -1,5 +1,5 @@
 # Builds every target on each push/PR and uploads them as downloadable artifacts:
-#   godot-web, godot-linux, godot-windows, three-web (+ a headless screenshot).
+#   hollowvale-web, hollowvale-linux, hollowvale-windows, three-web (+ a headless screenshot).
 name: build
 
 on:
@@ -30,15 +30,18 @@ jobs:
       - name: Import assets
         run: godot --headless --path godot --import
 
+      - name: Gameplay self-test (gather, craft, fight, survive, save)
+        run: godot --headless --path godot -- --selftest
+
       - name: Export Web, Linux, Windows
         run: make export-all
 
       - uses: actions/upload-artifact@v4
-        with: { name: godot-web, path: build/web }
+        with: { name: hollowvale-web, path: build/web }
       - uses: actions/upload-artifact@v4
-        with: { name: godot-linux, path: build/linux }
+        with: { name: hollowvale-linux, path: build/linux }
       - uses: actions/upload-artifact@v4
-        with: { name: godot-windows, path: build/windows }
+        with: { name: hollowvale-windows, path: build/windows }
 
   three:
     runs-on: ubuntu-24.04
