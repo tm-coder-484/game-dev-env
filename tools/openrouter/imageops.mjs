@@ -48,6 +48,37 @@ export async function trimAndFit(input, width, height = width, { pad = 0 } = {})
     .toBuffer();
 }
 
+/**
+ * Foliage card: crop transparent borders, fit inside w x h with the plant's base on the bottom edge,
+ * centred horizontally. Instanced grass/flower meshes put the card's bottom at ground level.
+ */
+export async function fitBottom(input, w, h) {
+  let img = sharp(input).ensureAlpha();
+  try {
+    img = sharp(await img.trim({ threshold: 1 }).toBuffer());
+  } catch {
+    /* nothing to trim */
+  }
+  const fitted = await img
+    .resize(w, h, { fit: 'inside', withoutEnlargement: false })
+    .png()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height } = fitted.info;
+  const left = Math.floor((w - width) / 2);
+  return sharp(fitted.data)
+    .extend({ top: h - height, bottom: 0, left, right: w - width - left, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+}
+
+/** Place PNG cells side by side into one atlas row (all cells w x h). */
+export async function atlasRow(cells, w, h) {
+  return sharp({ create: { width: w * cells.length, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite(cells.map((input, i) => ({ input, left: i * w, top: 0 })))
+    .png()
+    .toBuffer();
+}
+
 /** Crop transparent borders, then stretch to exactly w x h - for bars, frames, slots. */
 export async function trimAndStretch(input, w, h) {
   let buf = await sharp(input).ensureAlpha().png().toBuffer();

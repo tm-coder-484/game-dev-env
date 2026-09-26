@@ -141,3 +141,22 @@ lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
 textures/default_filters/anisotropic_filtering_level=4
 anti_aliasing/quality/msaa_3d=2
 anti_aliasing/quality/use_debanding=true
+
+[shader_globals]
+
+wind_direction={
+"type": "vec2",
+"value": Vector2(0.9, 0.44)
+}
+wind_strength={
+"type": "float",
+"value": 0.6
+}
+sky_light={
+"type": "float",
+"value": 1.0
+}
+player_position={
+"type": "vec3",
+"value": Vector3(0, -1000, 0)
+}

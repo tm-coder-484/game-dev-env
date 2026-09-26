@@ -10,6 +10,7 @@
 //   node tools/openrouter/assets.mjs ui-kit [--ref concept/hud.png] [--only slot,crosshair] [--placeholder]
 //   node tools/openrouter/assets.mjs icon "iron sword, healing potion, rope" [--dir godot/assets/ui/icons]
 //   node tools/openrouter/assets.mjs sprite "hooded wanderer, full body, facing right" --size 512
+//   node tools/openrouter/assets.mjs foliage "tall meadow grass; grass with seed heads" --out godot/game/world/textures/grass_atlas.png
 //   node tools/openrouter/assets.mjs texture "mossy cobblestone" --pbr [--size 1024]
 //   node tools/openrouter/assets.mjs sky "stormy sunset over mountains" --model seedream
 //   node tools/openrouter/assets.mjs edit concept/hud.png "make the bars thinner and more minimal"
@@ -178,6 +179,34 @@ async function cmdSprite() {
   await writeImages(res, `godot/assets/sprites/${slug(rest.join(' '))}.png`, (png) => ops.trimAndFit(png, size, size));
 }
 
+// Foliage cards for instanced vegetation (grass, flowers, ferns): one variant per ';'-separated prompt,
+// each trimmed with its base on the bottom edge of a --cell WxH cell, then packed into a one-row atlas
+// (.png, or .webp to keep big atlases small). Single cells are kept in build/foliage/ for inspection.
+async function cmdFoliage() {
+  const variants = rest.join(' ').split(';').map((s) => s.trim()).filter(Boolean);
+  if (!variants.length) throw new Error('usage: assets.mjs foliage "tall meadow grass; grass with seed heads" [--cell 512x1024] [--out atlas.png]');
+  const [cw, ch] = String(opts.cell ?? '512x1024').split('x').map(Number);
+  const out = opts.out ?? 'godot/assets/foliage/atlas.png';
+  const look = style(
+    'Photorealistic botanical cut-out photo, side view at eye level, soft even overcast daylight, natural colours, ' +
+      'crisp detail on every blade. Isolated on a fully transparent background with nothing else in frame: ' +
+      'no soil, ground, pot, shadow, border or text. The plant fills the frame and its base touches the bottom edge.',
+  );
+  const cells = [];
+  for (const v of variants) {
+    const res = await run(`foliage: ${v}`, { prompt: `${v}. ${look}`, aspect: opts.aspect ?? '2:3', transparent: true, refs: refs() });
+    if (!res.length) continue;
+    const cell = await ops.fitBottom(res[0].png, cw, ch);
+    save(join('build', 'foliage', `${slug(v)}.png`), cell);
+    cells.push(cell);
+  }
+  if (cells.length) {
+    const atlas = await ops.atlasRow(cells, cw, ch);
+    save(out, extname(out) === '.webp' ? await sharp(atlas).webp({ quality: 90, alphaQuality: 100 }).toBuffer() : atlas);
+    console.log(`  atlas: ${cells.length} cells of ${cw}x${ch}, left to right in prompt order`);
+  }
+}
+
 async function cmdTexture() {
   const what = rest.join(' ');
   const size = Number(opts.size ?? 1024);
@@ -222,11 +251,11 @@ async function cmdEdit() {
 }
 
 const COMMANDS = { models: cmdModels, concept: cmdConcept, hud: cmdHud, 'ui-kit': cmdUiKit, icon: cmdIcons, icons: cmdIcons,
-  sprite: cmdSprite, texture: cmdTexture, sky: cmdSky, edit: cmdEdit };
+  sprite: cmdSprite, foliage: cmdFoliage, texture: cmdTexture, sky: cmdSky, edit: cmdEdit };
 
 try {
   if (!COMMANDS[cmd]) {
-    console.log('usage: assets.mjs <models|concept|hud|ui-kit|icon|sprite|texture|sky|edit> ... (see header of tools/openrouter/assets.mjs)');
+    console.log('usage: assets.mjs <models|concept|hud|ui-kit|icon|sprite|foliage|texture|sky|edit> ... (see header of tools/openrouter/assets.mjs)');
     process.exit(cmd ? 1 : 0);
   }
   if (cmd !== 'models' && cmd !== 'ui-kit' && cmd !== 'edit' && !rest.length) throw new Error(`usage: assets.mjs ${cmd} "<description>"`);
