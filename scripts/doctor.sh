@@ -39,6 +39,8 @@ done
 echo "Project"
 [ -d web/node_modules ] && pass "web/node_modules" "installed" || fail "web/node_modules" "run: (cd web && npm install)"
 [ -d tools/node_modules ] && pass "tools/node_modules" "installed" || fail "tools/node_modules" "run: (cd tools && npm install)"
+mcp_err=$(node tools/desktop/mcp-launch.mjs --check 2>/dev/null) && pass "desktop MCP server" "packages load" \
+  || fail "desktop MCP server" "${mcp_err:-cannot start} - run: (cd tools && npm install)"
 [ -d godot/.godot ] && pass "godot import cache" "present" || warn "godot import cache" "run: make godot-import"
 
 echo "Network"

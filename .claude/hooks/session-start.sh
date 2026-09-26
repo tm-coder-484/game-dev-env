@@ -22,9 +22,13 @@ fi
 
 # 2. npm packages for the web game and the tools (desktop MCP server, asset
 #    pipeline). Fast no-op when up to date; npm install is cache-friendly.
+#    tools/desktop/mcp-launch.mjs may be installing tools/ right now (Claude Code
+#    starts MCP servers alongside this hook), so both take the same lock.
+lock=()
+command -v flock >/dev/null 2>&1 && lock=(flock .npm-install.lock)
 for dir in web tools; do
   if [ -f "$dir/package.json" ]; then
-    (cd "$dir" && npm install --no-fund --no-audit --loglevel=error >&2) || log "npm install failed in $dir"
+    (cd "$dir" && "${lock[@]}" npm install --no-fund --no-audit --loglevel=error >&2) || log "npm install failed in $dir"
   fi
 done
 

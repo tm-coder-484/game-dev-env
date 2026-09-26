@@ -7,6 +7,7 @@ build/
 web/dist/
 web/node_modules/
 tools/node_modules/
+.npm-install.lock
 web/screenshot.png
 
 # Secrets - copy .env.example to .env

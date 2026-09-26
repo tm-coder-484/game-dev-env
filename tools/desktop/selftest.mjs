@@ -17,7 +17,7 @@ if (!existsSync(GAME)) {
 }
 
 const client = new Client({ name: 'selftest', version: '1' });
-await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, 'tools/desktop/mcp-server.mjs')] }));
+await client.connect(new StdioClientTransport({ command: process.execPath, args: [join(ROOT, 'tools/desktop/mcp-launch.mjs')] }));
 
 async function call(name, args = {}) {
   const r = await client.callTool({ name, arguments: args });

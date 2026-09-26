@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // MCP server: gives Claude (or any MCP client) "computer use" tools for native
 // apps on a virtual display - see screenshots, click, type, press/hold keys.
-// Registered for Claude Code in the repo's .mcp.json as "desktop".
+// Registered for Claude Code in the repo's .mcp.json as "desktop", started via mcp-launch.mjs.
 //
 // Typical loop: desktop_launch("./build/linux/RealisticStarter.x86_64", wait_for="Realistic")
 //   -> desktop_screenshot -> desktop_click / desktop_key {keys:"w", hold_seconds:2}

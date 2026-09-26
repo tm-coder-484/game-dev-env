@@ -2,7 +2,7 @@
   "mcpServers": {
     "desktop": {
       "command": "node",
-      "args": ["${CLAUDE_PROJECT_DIR:-.}/tools/desktop/mcp-server.mjs"]
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/tools/desktop/mcp-launch.mjs"]
     }
   }
 }
