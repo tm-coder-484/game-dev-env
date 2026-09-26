@@ -10,7 +10,13 @@ static var main: Terrain
 
 @export var grid := 16 ## quads per patch edge
 @export var leaf_size := 32.0 ## metres, finest patch (grid spacing = leaf_size / grid = 2 m)
-@export var lod_ratio := 4.0 ## a patch stays at its LOD out to lod_ratio * its size
+@export var lod_ratio := 4.0: ## a patch stays at its LOD out to lod_ratio * its size
+	set(v):
+		lod_ratio = v
+		if _levels > 0:
+			for i in _levels:
+				_ranges[i] = lod_ratio * leaf_size * pow(2.0, i)
+			_last = Vector2(INF, INF)
 @export var root_size := 4096.0 ## quadtree root, covers the island plus surrounding sea floor
 
 var info: Dictionary

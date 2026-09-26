@@ -8,8 +8,10 @@
 [ext_resource type="Script" path="res://game/world/water.gd" id="6_water"]
 [ext_resource type="Script" path="res://game/world/foliage.gd" id="7_foliage"]
 [ext_resource type="Script" path="res://game/world/props.gd" id="8_props"]
+[ext_resource type="Script" path="res://game/world/world.gd" id="9_world"]
 
 [node name="World" type="Node3D"]
+script = ExtResource("9_world")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = ExtResource("1_env")
