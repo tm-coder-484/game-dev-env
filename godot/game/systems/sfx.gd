@@ -9,6 +9,11 @@ static func variants(sound: String) -> Array:
 	if _cache.has(sound):
 		return _cache[sound]
 	var found := []
+	# Without an audio device (headless, CI, --audio-driver Dummy) nothing would be heard, and the
+	# dummy mixer never releases finished playbacks, so don't play anything at all.
+	if AudioServer.get_driver_name() == "Dummy":
+		_cache[sound] = found
+		return found
 	for i in range(1, 9):
 		var base := "res://game/audio/%s%s" % [sound, "" if i == 1 else "_%d" % i]
 		for ext in [".wav", ".ogg"]:
@@ -17,6 +22,24 @@ static func variants(sound: String) -> Array:
 				break
 	_cache[sound] = found
 	return found
+
+
+static func _set_loop(s: AudioStream) -> void:
+	if s is AudioStreamOggVorbis:
+		(s as AudioStreamOggVorbis).loop = true
+	elif s is AudioStreamWAV:
+		var w := s as AudioStreamWAV
+		w.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		w.loop_end = int(w.get_length() * w.mix_rate)
+
+
+## A looping stream (ambience).
+static func looping(sound: String) -> AudioStream:
+	var s := stream(sound)
+	if s:
+		s = s.duplicate()
+		_set_loop(s)
+	return s
 
 
 static func stream(sound: String) -> AudioStream:
@@ -48,6 +71,7 @@ static func loop(sound: String, parent: Node3D, volume_db := 0.0) -> AudioStream
 	var s := stream(sound)
 	if s == null:
 		return null
+	_set_loop(s)
 	var p := AudioStreamPlayer3D.new()
 	p.stream = s
 	p.volume_db = volume_db

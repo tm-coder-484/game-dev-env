@@ -55,4 +55,5 @@ func _quit_title() -> void:
 
 func _quit() -> void:
 	Game.save_game()
-	get_tree().quit()
+	get_tree().paused = false
+	Game.quit()

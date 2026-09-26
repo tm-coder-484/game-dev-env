@@ -1,8 +1,8 @@
 extends Node3D
 ## Hollowvale's main scene. Opens on the title menu over a slow flyover of the island, then spawns the
 ## player in place (new game at the southern beach, or from the save), applies graphics settings and
-## autosaves. User args: --play (skip the title), --continue (load the save); for testing,
-## --stats=health,hunger,thirst,warmth, --give=stone_axe,arrow:10 and --hour=H.
+## autosaves. User args: --play (skip the title), --continue (load the save), --selftest; for testing,
+## --stats=health,hunger,thirst,warmth, --give=stone_axe,arrow:10, --hour=H and --spawn=wolf:2,hollow:1.
 
 const PLAYER := preload("res://game/player/player.tscn")
 
@@ -30,7 +30,13 @@ func _ready() -> void:
 	var shot := false
 	for a in args:
 		shot = shot or a.begins_with("--cam=") or a.begins_with("--shots=")
-	if "--play" in args or "--continue" in args:
+	if "--selftest" in args:
+		Game.save_path = "user://selftest_save.json"
+		start_game(false)
+		var test: Node = load("res://game/debug/selftest.gd").new()
+		add_child(test)
+		test.run(player)
+	elif "--play" in args or "--continue" in args:
 		start_game("--continue" in args)
 	elif not shot:
 		_show_title()
@@ -101,11 +107,31 @@ func start_game(continue_save: bool) -> void:
 	Game.ui_open = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	for a in OS.get_cmdline_user_args():
+		if a == "--freeze":
+			Game.set_meta("freeze_ai", true)
+		if a.begins_with("--spawn="):
+			_debug_spawn(a.get_slice("=", 1))
 		if a == "--ui=craft":
 			hud.craft.open()
 		elif a == "--ui=map":
 			hud.map.open()
 	get_tree().call_group("game_started", "on_game_started", player)
+
+
+## Test helper: "wolf:2,hollow:1" places enemies 7-14 m in front of the player, facing them.
+func _debug_spawn(spec: String) -> void:
+	var fwd := -player.global_basis.z
+	var i := 0
+	for part in spec.split(","):
+		var kind := part.get_slice(":", 0)
+		var n := int(part.get_slice(":", 1)) if ":" in part else 1
+		for k in n:
+			var e: Enemy = Wolf.new() if kind == "wolf" else Hollow.new()
+			add_child(e)
+			var p := player.global_position + fwd.rotated(Vector3.UP, (i - 1.0) * 0.35) * (7.0 + i * 2.0)
+			e.global_position = Vector3(p.x, Terrain.main.height_at(p.x, p.z) + 0.2, p.z)
+			e.look_at(Vector3(player.global_position.x, e.global_position.y, player.global_position.z))
+			i += 1
 
 
 func _process(delta: float) -> void:

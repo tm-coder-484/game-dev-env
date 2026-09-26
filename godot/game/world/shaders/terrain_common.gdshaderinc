@@ -25,10 +25,11 @@ float terrain_height(vec2 xz) {
 	float h10 = texelFetch(height_map, i + ivec2(1, 0), 0).r;
 	float h01 = texelFetch(height_map, i + ivec2(0, 1), 0).r;
 	float h11 = texelFetch(height_map, i + ivec2(1, 1), 0).r;
-	if (f.x >= f.y) {
-		return h00 + (h10 - h00) * f.x + (h11 - h10) * f.y;
+	// Jolt splits each quad along the (1,0)-(0,1) diagonal.
+	if (f.x + f.y <= 1.0) {
+		return h00 + (h10 - h00) * f.x + (h01 - h00) * f.y;
 	}
-	return h00 + (h01 - h00) * f.y + (h11 - h01) * f.x;
+	return h11 + (h01 - h11) * (1.0 - f.x) + (h10 - h11) * (1.0 - f.y);
 }
 
 // World-space normal, stored as (x, z, y).

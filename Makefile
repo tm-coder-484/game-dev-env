@@ -13,7 +13,7 @@ XVFB    := $(if $(or $(DISPLAY),$(filter Darwin,$(shell uname))),,xvfb-run -a -s
 .PHONY: help setup doctor godot-import godot-editor godot-run godot-shot \
         export-web export-linux export-windows export-all serve-godot-web \
         web-dev web-build web-preview web-shot rock preview convert assets ai-server clean \
-        play-native desktop-selftest hud-kit hud-placeholder
+        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons
 
 help: ## list commands
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36mmake %-16s\033[0m %s\n", $$1, $$2}'
@@ -37,6 +37,9 @@ godot-editor: ## open the Godot editor (needs a desktop)
 
 godot-run: ## play the Godot game
 	$(GODOT) --path $(PROJECT)
+
+selftest: ## play the survival loop headlessly (gather, craft, fight, survive) and report PASS/FAIL
+	$(GODOT) --headless --path $(PROJECT) -- --selftest
 
 godot-shot: ## render a Godot screenshot headlessly -> build/shots/godot.png
 	@mkdir -p $(SHOTS)
@@ -72,6 +75,25 @@ web-preview: web-build ## serve web/dist on http://localhost:4173
 web-shot: web-build ## headless-browser smoke test + screenshot -> build/shots/web.png
 	@mkdir -p $(SHOTS)
 	cd web && node scripts/screenshot.mjs dist $(abspath $(SHOTS))/web.png 15000
+
+# ----------------------------------------------------- hollowvale assets ----
+world: ## regenerate the island (heightmap, erosion, masks, map): make world SEED=7
+	$(BLENDER) --python-exit-code 1 -P tools/world/build_world.py -- --seed $(SEED)
+
+terrain-textures: ## re-pack the terrain texture arrays from Poly Haven
+	$(BLENDER) --python-exit-code 1 -P tools/world/pack_textures.py
+
+trees: ## regenerate the tree and bush meshes
+	$(BLENDER) --python-exit-code 1 -P tools/blender/generate_trees.py -- $(PROJECT)/game/world/models/trees.glb
+
+props: ## re-download and decimate the Poly Haven rocks, logs and plants
+	$(BLENDER) --python-exit-code 1 -P tools/blender/build_props.py
+
+creatures: ## regenerate the wolf and Hollow meshes and rigs
+	$(BLENDER) --python-exit-code 1 -P tools/blender/generate_creatures.py -- $(PROJECT)/game/enemies/models
+
+icons: ## generate missing item/HUD icons with an OpenRouter image model
+	bash tools/openrouter/make_item_icons.sh
 
 # -------------------------------------------------------------- blender ----
 SEED ?= 7

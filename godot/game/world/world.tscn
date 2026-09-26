@@ -9,6 +9,8 @@
 [ext_resource type="Script" path="res://game/world/foliage.gd" id="7_foliage"]
 [ext_resource type="Script" path="res://game/world/props.gd" id="8_props"]
 [ext_resource type="Script" path="res://game/world/world.gd" id="9_world"]
+[ext_resource type="Script" path="res://game/enemies/spawner.gd" id="10_spawner"]
+[ext_resource type="Script" path="res://game/systems/ambience.gd" id="11_ambience"]
 
 [node name="World" type="Node3D"]
 script = ExtResource("9_world")
@@ -53,6 +55,12 @@ script = ExtResource("8_props")
 
 [node name="Water" type="Node3D" parent="."]
 script = ExtResource("6_water")
+
+[node name="Spawner" type="Node" parent="."]
+script = ExtResource("10_spawner")
+
+[node name="Ambience" type="Node" parent="."]
+script = ExtResource("11_ambience")
 
 [node name="Shot" type="Node" parent="."]
 script = ExtResource("5_shot")

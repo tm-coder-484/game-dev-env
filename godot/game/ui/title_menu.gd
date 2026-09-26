@@ -18,8 +18,7 @@ func _init() -> void:
 	g.fill_to = Vector2(1, 0)
 	grad.texture = g
 	grad.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-	grad.custom_minimum_size = Vector2(760, 0)
-	grad.size = Vector2(760, 1080)
+	grad.offset_right = 760.0
 	grad.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	grad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(grad)
@@ -46,7 +45,7 @@ func _init() -> void:
 		_main.visible = false
 		_settings.visible = true)
 	if OS.get_name() != "Web":
-		_button("Quit", func() -> void: get_tree().quit())
+		_button("Quit", func() -> void: Game.quit())
 	_settings = SettingsPanel.build(func() -> void:
 		_settings.visible = false
 		_main.visible = true)

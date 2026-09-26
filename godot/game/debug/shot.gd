@@ -83,4 +83,4 @@ func _process(_delta: float) -> void:
 	if not _queue.is_empty():
 		_next_shot()
 	else:
-		get_tree().quit(0 if err == OK else 1)
+		Game.quit(0 if err == OK else 1)

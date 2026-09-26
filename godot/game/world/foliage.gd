@@ -211,6 +211,7 @@ func _build() -> void:
 		PhysicsServer3D.body_set_mode(body, PhysicsServer3D.BODY_MODE_STATIC)
 		PhysicsServer3D.body_set_space(body, space)
 		PhysicsServer3D.body_set_collision_layer(body, 1)
+		PhysicsServer3D.body_set_collision_mask(body, 1)
 		PhysicsServer3D.body_attach_object_instance_id(body, get_instance_id())
 		cell.body = body
 		_body_cell[body.get_id()] = c

@@ -119,7 +119,7 @@ func _build_patches() -> void:
 	add_child(mmi)
 
 
-## A unit grid (0..1 in x/z) with a skirt, triangulated like Jolt's heightfield (diagonal 00-11).
+## A unit grid (0..1 in x/z) with a skirt, triangulated like Jolt's heightfield (diagonal 10-01).
 static func _grid_mesh(n: int) -> ArrayMesh:
 	var verts := PackedVector3Array()
 	var idx := PackedInt32Array()
@@ -132,7 +132,7 @@ static func _grid_mesh(n: int) -> ArrayMesh:
 			var b := a + 1
 			var c := a + n + 1
 			var d := c + 1
-			idx.append_array([a, b, d, a, d, c])
+			idx.append_array([a, b, c, b, d, c])
 	# Skirt: every edge vertex again at y = -1 (the shader drops it below the surface).
 	var edge: Array[int] = []
 	for x in n + 1:
@@ -240,13 +240,13 @@ func height_at(x: float, z: float) -> float:
 	var fx := px - ix
 	var fz := pz - iz
 	var i := iz * res + ix
-	var h00 := heights[i]
-	var h11 := heights[i + res + 1]
-	if fx >= fz:
-		var h10 := heights[i + 1]
-		return h00 + (h10 - h00) * fx + (h11 - h10) * fz
+	var h10 := heights[i + 1]
 	var h01 := heights[i + res]
-	return h00 + (h01 - h00) * fz + (h11 - h01) * fx
+	# Same split as Jolt's heightfield: along the (1,0)-(0,1) diagonal.
+	if fx + fz <= 1.0:
+		return heights[i] + (h10 - heights[i]) * fx + (h01 - heights[i]) * fz
+	var h11 := heights[i + res + 1]
+	return h11 + (h01 - h11) * (1.0 - fx) + (h10 - h11) * (1.0 - fz)
 
 
 func normal_at(x: float, z: float) -> Vector3:

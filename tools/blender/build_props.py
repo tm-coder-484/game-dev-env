@@ -61,7 +61,7 @@ def main():
             obj.select_set(True)
             bpy.context.view_layer.objects.active = obj
             # Bake parent transforms into the mesh, then decimate.
-            obj.parent = None
+            bpy.ops.object.parent_clear(type="CLEAR_KEEP_TRANSFORM")
             bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
             t0 = tris(obj)
             # glTF import splits vertices along seams; weld them so the decimator can collapse edges.
@@ -80,8 +80,8 @@ def main():
             cy = (min(v.y for v in ws) + max(v.y for v in ws)) / 2
             zmin = min(v.z for v in ws)
             offset = Vector((cx, cy, zmin))
-            for v in obj.data.vertices:
-                v.co = obj.matrix_world.inverted() @ ((obj.matrix_world @ v.co) - offset)
+            for v, w in zip(obj.data.vertices, ws):
+                v.co = w - offset
             obj.location = (0, 0, 0)
             n = counters.get(kind, 0)
             counters[kind] = n + 1
