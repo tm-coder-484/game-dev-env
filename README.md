@@ -4,6 +4,8 @@
 **Windows, Linux and in the browser**. You wash up on the southern beach with nothing. Gather,
 craft tools, hunt, keep warm and fed, and survive the nights, when the **Hollows** walk.
 
+#### Trigger rebuild
+
 | Tall wavy meadow grass | Forest edge |
 |---|---|
 | ![Meadow](docs/images/hollowvale-meadow.jpg) | ![Forest](docs/images/hollowvale-forest.jpg) |
