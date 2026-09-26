@@ -29,7 +29,7 @@ const POSES := {
 	"torch": [Vector3(0.34, -0.42, -0.55), Vector3(-6, -10, 10)],
 	"spear": [Vector3(0.28, -0.34, -0.1), Vector3(-84, 0, -4)],
 	"bow": [Vector3(-0.03, -0.1, -0.5), Vector3(0, 90, 6)],
-	"item": [Vector3(0.38, -0.3, -0.58), Vector3(-10, -25, 0)],
+	"item": [Vector3(0.42, -0.37, -0.6), Vector3(-10, -25, 0)],
 	"campfire": [Vector3(0.18, -0.36, -0.6), Vector3(-10, 0, 0)],
 }
 

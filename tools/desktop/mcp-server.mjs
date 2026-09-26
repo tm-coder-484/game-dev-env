@@ -3,7 +3,7 @@
 // apps on a virtual display - see screenshots, click, type, press/hold keys.
 // Registered for Claude Code in the repo's .mcp.json as "desktop", started via mcp-launch.mjs.
 //
-// Typical loop: desktop_launch("./build/linux/RealisticStarter.x86_64", wait_for="Realistic")
+// Typical loop: desktop_launch("./build/linux/Hollowvale.x86_64", wait_for="Hollowvale")
 //   -> desktop_screenshot -> desktop_click / desktop_key {keys:"w", hold_seconds:2}
 //   -> desktop_screenshot ...
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -69,7 +69,7 @@ tool(
   'Start a program on the virtual display (a Godot export, `godot --path godot`, `blender`, ...). ' +
     'Runs from the repo root. Returns its pid and log path.',
   {
-    command: z.string().describe('Shell command, e.g. "./build/linux/RealisticStarter.x86_64 --rendering-driver opengl3"'),
+    command: z.string().describe('Shell command, e.g. "./build/linux/Hollowvale.x86_64 --rendering-driver opengl3"'),
     wait_for: z.string().optional().describe('Regex of the window title to wait for'),
     timeout: z.number().optional().describe('Seconds to wait for the window (default 60)'),
   },

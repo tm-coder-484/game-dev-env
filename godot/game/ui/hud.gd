@@ -57,10 +57,12 @@ func _ready() -> void:
 	death = DeathScreen.new()
 	root.add_child(death)
 	Game.notified.connect(_on_notify)
+	_set_overlay(false)
 
 
 func attach(p: Player) -> void:
 	player = p
+	_set_overlay(true)
 	player.inventory.changed.connect(_refresh_hotbar)
 	player.hurt.connect(_on_hurt)
 	player.died.connect(func() -> void: death.open_for(player))
@@ -227,6 +229,13 @@ func _build_notes() -> void:
 	_notes.add_theme_constant_override("separation", 4)
 	_notes.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_notes)
+
+
+## Everything except the menus, hidden on the title screen.
+func _set_overlay(on: bool) -> void:
+	for c in root.get_children():
+		if not c is GameScreen:
+			(c as CanvasItem).visible = on
 
 
 # ------------------------------------------------------------ update ----

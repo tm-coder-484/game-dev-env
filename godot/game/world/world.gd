@@ -15,6 +15,7 @@ var _autosave := 0.0
 var _flyover: Camera3D
 var _fly_t := 0.0
 var _title: TitleMenu
+var _from_menu := false
 
 @onready var grass: GrassField = $Grass
 @onready var sun: DirectionalLight3D = $Sun
@@ -27,6 +28,12 @@ func _ready() -> void:
 	hud = HUD.new()
 	add_child(hud)
 	var args := OS.get_cmdline_user_args()
+	# Web builds take the same switches from the URL: index.html?play, ?continue
+	if OS.has_feature("web"):
+		var q := str(JavaScriptBridge.eval("window.location.search", true))
+		for key in ["play", "continue", "freeze"]:
+			if key in q:
+				args.append("--" + key)
 	var shot := false
 	for a in args:
 		shot = shot or a.begins_with("--cam=") or a.begins_with("--shots=")
@@ -52,7 +59,9 @@ func _show_title() -> void:
 	_title = TitleMenu.new()
 	hud.root.add_child(_title)
 	_title.open()
-	_title.start.connect(start_game)
+	_title.start.connect(func(cont: bool) -> void:
+		_from_menu = true
+		start_game(cont))
 
 
 func start_game(continue_save: bool) -> void:
@@ -87,6 +96,7 @@ func start_game(continue_save: bool) -> void:
 	else:
 		Game.delete_save()
 		player.inventory.add("berries", 3)
+		player.inventory.select(Inventory.HOTBAR_SIZE - 1) # start empty-handed
 		Game.notify("You wash up on the island's southern shore.")
 		Game.notify("Gather sticks, stones and plant fiber with [E], then craft with [Tab].")
 		Game.notify("Night brings cold, and the Hollows. Build a fire before dark.")
@@ -105,7 +115,9 @@ func start_game(continue_save: bool) -> void:
 			DayNight.main.time_of_day = v.to_float()
 	hud.attach(player)
 	Game.ui_open = false
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# Browsers only allow pointer lock from a click: auto-started web games capture on the first click.
+	if not OS.has_feature("web") or _from_menu:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	for a in OS.get_cmdline_user_args():
 		if a == "--freeze":
 			Game.set_meta("freeze_ai", true)
@@ -159,7 +171,8 @@ func apply_quality() -> void:
 	sun.directional_shadow_max_distance = [110.0, 170.0, 260.0, 340.0][q]
 	RenderingServer.directional_shadow_atlas_set_size([2048, 4096, 8192, 8192][q], true)
 	get_viewport().msaa_3d = [Viewport.MSAA_DISABLED, Viewport.MSAA_2X, Viewport.MSAA_2X, Viewport.MSAA_4X][q]
-	get_viewport().scaling_3d_scale = [0.8, 1.0, 1.0, 1.0][q]
-	get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if q == 0 else Viewport.SCALING_3D_MODE_BILINEAR
+	var forward_plus := RenderingServer.get_current_rendering_method() == "forward_plus"
+	get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if q == 0 and forward_plus else Viewport.SCALING_3D_MODE_BILINEAR
+	get_viewport().scaling_3d_scale = 0.8 if q == 0 and forward_plus else 1.0
 	if Terrain.main:
 		Terrain.main.lod_ratio = [3.0, 3.5, 4.0, 5.0][q]

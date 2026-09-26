@@ -155,7 +155,7 @@ Or use it from the shell:
 
 ```bash
 D="node tools/desktop/desk.mjs"
-$D launch "./build/linux/RealisticStarter.x86_64 --rendering-driver opengl3" --wait Realistic
+$D launch "./build/linux/Hollowvale.x86_64 --rendering-driver opengl3" --wait Hollowvale
 $D click 640 360            # focus + capture the mouse
 $D look 300 0               # turn right
 $D key "w shift" --hold 2   # sprint forward for 2 s

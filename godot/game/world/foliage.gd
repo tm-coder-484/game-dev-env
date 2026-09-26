@@ -265,8 +265,17 @@ func _capture_impostors() -> void:
 		vp.size = Vector2i(cw, ch)
 		vp.transparent_bg = true
 		vp.own_world_3d = true
-		vp.debug_draw = Viewport.DEBUG_DRAW_UNSHADED
 		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		# Flat white ambient light and no sun: the capture is (close to) the plain albedo, in any renderer.
+		var we := WorldEnvironment.new()
+		var env := Environment.new()
+		env.background_mode = Environment.BG_CLEAR_COLOR
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		env.ambient_light_color = Color.WHITE
+		env.ambient_light_energy = 1.0
+		env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+		we.environment = env
+		vp.add_child(we)
 		var cam := Camera3D.new()
 		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 		vp.add_child(cam)

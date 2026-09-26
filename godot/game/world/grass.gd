@@ -15,12 +15,12 @@ const ATLAS := preload("res://game/world/textures/grass/grass_atlas.webp")
 		if is_inside_tree():
 			_rebuild()
 
-# Per quality: near spacing, near radius, far spacing, far radius.
+# Per quality: near spacing, near radius, far spacing, far radius, clump size (sparser = bigger clumps).
 const PRESETS := [
-	[0.8, 22.0, 1.8, 50.0],
-	[0.6, 30.0, 1.4, 70.0],
-	[0.45, 36.0, 1.05, 95.0],
-	[0.38, 44.0, 0.9, 120.0],
+	[0.8, 22.0, 1.8, 50.0, 1.45],
+	[0.6, 30.0, 1.4, 70.0, 1.15],
+	[0.45, 36.0, 1.05, 95.0, 1.0],
+	[0.38, 44.0, 0.9, 120.0, 0.95],
 ]
 
 var _rings: Array[MultiMeshInstance3D] = []
@@ -52,8 +52,8 @@ func _rebuild() -> void:
 	var p: Array = PRESETS[quality]
 	var near_r: float = p[1]
 	var far_r: float = p[3]
-	_add_ring(p[0], 0.0, near_r, 5, 1.0, Vector4(0.0, 0.0, near_r - 6.0, near_r), true)
-	_add_ring(p[2], near_r - 7.0, far_r, 2, 1.2, Vector4(near_r - 7.0, near_r - 1.0, far_r - 18.0, far_r), false)
+	_add_ring(p[0], 0.0, near_r, 5, p[4], Vector4(0.0, 0.0, near_r - 6.0, near_r), true)
+	_add_ring(p[2], near_r - 7.0, far_r, 2, 1.2 * p[4], Vector4(near_r - 7.0, near_r - 1.0, far_r - 18.0, far_r), false)
 
 
 func _add_ring(spacing: float, r0: float, r1: float, rows: int, size_scale: float, fade: Vector4, shadows: bool) -> void:

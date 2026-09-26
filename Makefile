@@ -51,11 +51,11 @@ export-web: ## export Godot game for browsers -> build/web
 
 export-linux: ## export Godot game for Linux -> build/linux
 	@mkdir -p $(BUILD)/linux
-	$(GODOT) --headless --path $(PROJECT) --export-release "Linux" ../$(BUILD)/linux/RealisticStarter.x86_64
+	$(GODOT) --headless --path $(PROJECT) --export-release "Linux" ../$(BUILD)/linux/Hollowvale.x86_64
 
 export-windows: ## export Godot game for Windows -> build/windows
 	@mkdir -p $(BUILD)/windows
-	$(GODOT) --headless --path $(PROJECT) --export-release "Windows" ../$(BUILD)/windows/RealisticStarter.exe
+	$(GODOT) --headless --path $(PROJECT) --export-release "Windows" ../$(BUILD)/windows/Hollowvale.exe
 
 export-all: export-web export-linux export-windows ## all three exports
 
@@ -117,7 +117,7 @@ assets: ## re-download the shared CC0 sky + ground textures from Poly Haven
 DESK := node tools/desktop/desk.mjs
 play-native: export-linux ## run the native Linux build on the virtual desktop, walk forward, screenshot
 	$(DESK) kill all >/dev/null 2>&1 || true
-	$(DESK) launch "./$(BUILD)/linux/RealisticStarter.x86_64 --rendering-driver opengl3 --audio-driver Dummy" --wait Realistic
+	$(DESK) launch "./$(BUILD)/linux/Hollowvale.x86_64 --rendering-driver opengl3 --audio-driver Dummy -- --play" --wait Hollowvale
 	$(DESK) wait 3
 	$(DESK) click 640 360
 	$(DESK) key "w shift" --hold 2

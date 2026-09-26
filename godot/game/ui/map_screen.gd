@@ -5,14 +5,15 @@ extends GameScreen
 var player: Player
 var _map: TextureRect
 var _overlay: Control
+var _panel: PanelContainer
 
 
 func _init() -> void:
 	super()
 	GameScreen.dim_background(self, 0.7)
-	var panel := GameScreen.centered_panel(self, Vector2(740, 780))
+	_panel = GameScreen.centered_panel(self, Vector2(740, 780))
 	var v := VBoxContainer.new()
-	panel.add_child(v)
+	_panel.add_child(v)
 	v.add_child(UITheme.title("Hollowvale", 30))
 	_map = TextureRect.new()
 	_map.texture = load("res://game/world/data/map.png")
@@ -27,6 +28,15 @@ func _init() -> void:
 	var legend := UITheme.label("You   ●  Campfire   ✦ The blight (dead woods)    [M] close", 15, UITheme.DIM)
 	legend.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(legend)
+
+
+func _on_open() -> void:
+	# Fit the map to the window (the panel adds ~80 px of title and legend).
+	var side := clampf(get_viewport_rect().size.y - 130.0, 360.0, 700.0)
+	_map.custom_minimum_size = Vector2(side, side)
+	_panel.custom_minimum_size = Vector2(side + 40.0, side + 80.0)
+	_panel.size = _panel.custom_minimum_size
+	_panel.position = -_panel.size * 0.5
 
 
 func _process(_delta: float) -> void:
