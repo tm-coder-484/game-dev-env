@@ -13,3 +13,6 @@
 *.jpg   binary
 *.ogg   binary
 *.wav   binary
+*.webp  binary
+*.f32   binary
+*.ttf   binary

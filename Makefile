@@ -13,7 +13,7 @@ XVFB    := $(if $(or $(DISPLAY),$(filter Darwin,$(shell uname))),,xvfb-run -a -s
 .PHONY: help setup doctor godot-import godot-editor godot-run godot-shot \
         export-web export-linux export-windows export-all serve-godot-web \
         web-dev web-build web-preview web-shot rock preview convert assets ai-server clean \
-        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons
+        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons sfx
 
 help: ## list commands
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36mmake %-16s\033[0m %s\n", $$1, $$2}'
@@ -91,6 +91,9 @@ props: ## re-download and decimate the Poly Haven rocks, logs and plants
 
 creatures: ## regenerate the wolf and Hollow meshes and rigs
 	$(BLENDER) --python-exit-code 1 -P tools/blender/generate_creatures.py -- $(PROJECT)/game/enemies/models
+
+sfx: ## rebuild the sound effects (Kenney CC0 + synthesised)
+	$(BLENDER) --python-exit-code 1 -P tools/audio/make_sfx.py
 
 icons: ## generate missing item/HUD icons with an OpenRouter image model
 	bash tools/openrouter/make_item_icons.sh

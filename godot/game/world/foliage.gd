@@ -261,43 +261,45 @@ func _capture_impostors() -> void:
 	var ch := 512
 	var atlas := Image.create_empty(cw * cells, ch, false, Image.FORMAT_RGBA8)
 	if DisplayServer.get_name() != "headless":
-		var vp := SubViewport.new()
-		vp.size = Vector2i(cw, ch)
-		vp.transparent_bg = true
-		vp.own_world_3d = true
-		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-		# Flat white ambient light and no sun: the capture is (close to) the plain albedo, in any renderer.
-		var we := WorldEnvironment.new()
+		# One small viewport per mesh, all rendered in the same frame (flat white ambient light and no
+		# sun, so the capture is close to the plain albedo in any renderer).
 		var env := Environment.new()
 		env.background_mode = Environment.BG_CLEAR_COLOR
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		env.ambient_light_color = Color.WHITE
 		env.ambient_light_energy = 1.0
 		env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
-		we.environment = env
-		vp.add_child(we)
-		var cam := Camera3D.new()
-		cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-		vp.add_child(cam)
-		var mi := MeshInstance3D.new()
-		vp.add_child(mi)
-		add_child(vp)
+		var vps: Array[SubViewport] = []
 		for i in cells:
+			var vp := SubViewport.new()
+			vp.size = Vector2i(cw, ch)
+			vp.transparent_bg = true
+			vp.own_world_3d = true
+			vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+			var we := WorldEnvironment.new()
+			we.environment = env
+			vp.add_child(we)
 			var aabb := _meshes[i].get_aabb()
-			var h := aabb.end.y
-			var w := maxf(aabb.size.x, aabb.size.z)
-			mi.mesh = _meshes[i]
-			cam.size = maxf(h, w * 2.0) # size is the vertical extent; cells are 1:2
+			var cam := Camera3D.new()
+			cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+			cam.size = maxf(aabb.end.y, maxf(aabb.size.x, aabb.size.z) * 2.0) # vertical extent; cells are 1:2
 			cam.position = Vector3(0, cam.size * 0.5, 60.0)
 			cam.far = 200.0
-			await RenderingServer.frame_post_draw
-			await RenderingServer.frame_post_draw
-			var img := vp.get_texture().get_image()
-			img.convert(Image.FORMAT_RGBA8)
-			atlas.blit_rect(img, Rect2i(0, 0, cw, ch), Vector2i(i * cw, 0))
+			vp.add_child(cam)
+			var mi := MeshInstance3D.new()
+			mi.mesh = _meshes[i]
+			vp.add_child(mi)
+			add_child(vp)
+			vps.append(vp)
 			_mesh_height[i] = cam.size
 			_mesh_width[i] = cam.size * 0.5
-		vp.queue_free()
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		for i in cells:
+			var img := vps[i].get_texture().get_image()
+			img.convert(Image.FORMAT_RGBA8)
+			atlas.blit_rect(img, Rect2i(0, 0, cw, ch), Vector2i(i * cw, 0))
+			vps[i].queue_free()
 	atlas.fix_alpha_edges()
 	atlas.generate_mipmaps()
 	_impostor_mat = ShaderMaterial.new()

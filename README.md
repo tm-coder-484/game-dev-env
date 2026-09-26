@@ -1,4 +1,125 @@
-# game-dev-env
+# Hollowvale (built with game-dev-env)
+
+**Hollowvale** is an open-world survival game on a 2 km island, made with Godot 4.7. It runs on
+**Windows, Linux and in the browser**. You wash up on the southern beach with nothing. Gather,
+craft tools, hunt, keep warm and fed, and survive the nights, when the **Hollows** walk.
+
+| Tall wavy meadow grass | Forest edge |
+|---|---|
+| ![Meadow](docs/images/hollowvale-meadow.jpg) | ![Forest](docs/images/hollowvale-forest.jpg) |
+| **Mirror Lake at dusk** | **The island from above** |
+| ![Lake](docs/images/hollowvale-lake.jpg) | ![Aerial](docs/images/hollowvale-aerial.jpg) |
+| **Survival HUD (hearts, shanks, droplets, warmth)** | **Hollows at night** |
+| ![HUD](docs/images/hollowvale-hud.jpg) | ![Hollows](docs/images/hollowvale-hollows.jpg) |
+
+These were rendered headlessly on a CPU in the cloud sandbox. On a real GPU the game runs in real time
+and looks sharper.
+
+## Play it
+
+| Platform | Easiest | From source |
+|---|---|---|
+| **Windows** | Double-click **`play-windows.bat`**. It runs `build\windows\Hollowvale.exe` if you have it; otherwise it installs Godot 4.7 with winget and starts the game from source. | `godot --path godot` |
+| **Linux / macOS** | **`./play.sh`** (same logic) | `make godot-run` |
+| **Browser** | Enable GitHub Pages (Settings → Pages → Source: GitHub Actions), run **Actions → deploy to pages**, then open `https://<you>.github.io/<repo>/godot/`. Add `?play` to skip the title screen. | `make export-web && make serve-godot-web` |
+
+Ready-made builds: every push and PR builds **`hollowvale-windows`** (a single `Hollowvale.exe`),
+**`hollowvale-linux`** and **`hollowvale-web`**. Download them from the run's *Artifacts* on the
+**Actions** tab, or build them yourself with `make export-all`.
+
+The browser version uses the WebGL 2 renderer: no volumetric fog, SSAO or shadows beyond ~110 m,
+and sparser grass. The first load is about 115 MB.
+
+### Controls
+
+| | Keyboard and mouse | Gamepad |
+|---|---|---|
+| Move / look | WASD / mouse (click to capture) | Left / right stick |
+| Sprint, jump / swim up | Shift, Space | L3, A |
+| Use / attack / chop / eat | **Left mouse** (hold and release to shoot the bow) | Right trigger |
+| Block / aim the bow | **Right mouse** | Left trigger |
+| Interact (pick up, drink, harvest, cook) | **E** | X |
+| Items | **1-8**, mouse wheel | LB / RB |
+| Crafting and pack | **Tab** or C | Back |
+| Map / menu | **M** / **Esc** | Start |
+
+### How to survive
+
+- **The HUD reads like Minecraft.** Rows of ten hearts (health), shanks (hunger), droplets (thirst) and
+  flames (warmth) drain in half steps. They shiver when critical, flash when you're hurt and ripple
+  when you heal. The slim bar above the hotbar is stamina.
+- **Start:** press **E** on pebbles (stone), dry branches (sticks) and tall grass (plant fiber). Craft a
+  **stone axe** (Tab) and chop trees for **wood**. Pick **berries** from bramble bushes.
+- **Water:** drink from **Mirror Lake**; the sea is salt water. Craft a **waterskin** from wolf hides
+  to carry water.
+- **Fire:** a **campfire** (4 wood, 4 stone) warms you, cooks raw meat and marks your respawn point.
+  Hollows won't come near a lit fire. Feed it wood to keep it burning.
+- **Nights are cold and dangerous.** Warmth drops after dark (faster up in the mountains or when wet),
+  and freezing hurts. Carry a **torch** or stay by a fire.
+- **Wolves** hunt in packs in the forests, by day and night. Watch for the crouch before the lunge,
+  and block (right mouse) or keep them at spear's length. They drop meat and hides.
+- **Hollows** rise at night: burnt husks with embers glowing through their cracks. They wind up a
+  heavy overhead slam, fear fire (torch hits burn them), and burn to cinders at dawn. Their bones make
+  the best spear. There are more of them every night, and far more in **the Blight**, the dead forest
+  in the north-west.
+- Ten recipes: stone axe, pickaxe, spear, bone spear, hunting bow, arrows, torch, bandage, campfire,
+  waterskin. The game autosaves; Continue on the title screen resumes.
+
+### What's in the world
+
+- **Island:** 2 km of terrain generated with hydraulic erosion (`tools/world/build_world.py`): a
+  mountain range with snow, valleys, beaches and a lake. It's drawn by a GPU CDLOD terrain with seven
+  height-blended Poly Haven PBR layers and triplanar cliffs, and collision matches the rendered
+  surface exactly.
+- **Tall grass:** about 45k GPU-instanced clumps from five photoreal variants generated with an
+  OpenRouter image model (`assets.mjs foliage`). Waves roll across the fields in the wind, the grass
+  shows a sheen as it bends, and it parts around you.
+- **Forests:** about 13,000 trees (spruce, Scots pine, birch, dead trees) generated in Blender
+  (`tools/blender/generate_trees.py`) with AI-generated branch cards and real bark textures. They sway
+  in the wind and switch to impostors (captured at startup) in the distance. There are also bramble
+  bushes, ferns, logs, stumps and rocks from Poly Haven.
+- **Sky and water:** a physically based sky (Rayleigh/Mie scattering), drifting clouds, moon and stars,
+  and a full day/night cycle. The ocean has Gerstner swell, refraction and shoreline foam; the lake is
+  calm freshwater.
+- **Creatures:** skinned wolves (shell fur) and Hollows (ember-cracked husks) built in Blender
+  (`tools/blender/generate_creatures.py`) and animated procedurally, so their gaits match their speed.
+- **Sound:** Kenney CC0 recordings plus synthesized creature voices and ambience (wind, surf, birds,
+  crickets, distant howls) from `tools/audio/make_sfx.py`.
+
+### Graphics settings
+
+Esc → Settings → **Graphics**: Low (the Web default), Medium, High (the desktop default), Ultra.
+The presets change grass density and range, shadow distance and resolution, SSAO, volumetric fog and
+MSAA. The desktop build uses Forward+ with volumetric fog, SSAO, glow and 8K shadow maps. The game
+targets a mid-range GPU at High; if your frame rate is low, try Medium.
+
+### Rebuilding the assets
+
+Everything in the game can be regenerated from this repo:
+
+```bash
+make world SEED=7        # island heightmap, erosion, masks, map         (Blender's numpy)
+make terrain-textures    # Poly Haven terrain layers -> texture arrays
+make trees               # trees and bushes (Blender)
+make props               # Poly Haven rocks, logs, ferns, decimated
+make creatures           # wolf and Hollow meshes + rigs (Blender)
+make sfx                 # sound effects: Kenney CC0 + synthesized
+make icons               # item and HUD icons (OpenRouter image model; costs a few cents each)
+node tools/openrouter/assets.mjs foliage "<prompt>; <prompt>" --cell 1024x1536 --out atlas.webp  # grass/leaf cards
+make godot-import        # then re-import in Godot
+```
+
+### Testing
+
+`make selftest` plays the survival loop headlessly in a few seconds. It gathers, crafts, chops, mines,
+fights wolves with a spear and a Hollow with the bow, gets bitten, cooks at a campfire, drinks, starves,
+waits for night and dawn, dies, respawns and saves, then prints PASS/FAIL for each step. CI runs it on
+every push. For pictures, `godot --path godot -- --play --screenshot=out.png` (plus `--cam=x,z,height,yaw,pitch`,
+`--time=21`, `--spawn=wolf:2`, `--give=bow,arrow:10`, `--preview` for fast CPU renders) saves a frame and quits.
+
+---
+
+# game-dev-env: the toolkit behind it
 
 A ready-to-run setup for making realistic 3D games that ship **standalone**
 (Windows/Linux/macOS) and **in the browser**. It includes AI game art from
@@ -86,9 +207,9 @@ make play-native         # run the native build on the virtual desktop, walk, sc
 make doctor              # check what's installed and reachable
 ```
 
-Controls in both games: **WASD** to move, **mouse** to look (click to capture), **Space** to jump,
-**Shift** to sprint (uses stamina), **F** for the flashlight, **E** to talk to Mara, **1–5** or the mouse wheel for items,
-**Esc** to release the mouse. Gamepads work in the Godot version.
+Controls in the starter demos (`scenes/main.tscn` and the three.js game): **WASD** to move, **mouse** to look
+(click to capture), **Space** to jump, **Shift** to sprint (uses stamina), **F** for the flashlight, **E** to talk to Mara,
+**1–5** or the mouse wheel for items, **Esc** to release the mouse. Hollowvale's controls are listed at the top.
 
 ## AI game art (any OpenRouter image model)
 
@@ -207,11 +328,21 @@ See **[docs/UNREAL.md](docs/UNREAL.md)** for setting up Unreal on your own PC an
 .mcp.json           registers the desktop (computer use) MCP server
 .github/workflows/  build.yml (CI artifacts), pages.yml (deploy browser builds)
 docs/               cloud setup guide, Unreal notes, screenshots
-godot/              Godot 4.7 project (scenes/, scripts/, assets/shared/)
+godot/              Godot 4.7 project; main scene game/world/world.tscn
+  game/world/       terrain, grass, foliage, props, water, sky, day/night, campfire (+ data/, shaders/)
+  game/player/      player, viewmodel, item models, arrows
+  game/enemies/     wolves, Hollows, procedural rigs, spawner
+  game/ui/          HUD, crafting, map, pause, title, death screens, icons, fonts
+  game/systems/     Game autoload, items and recipes, inventory, sound, ambience
+  game/debug/       screenshot/camera harness and the gameplay self-test
+  scenes/ scripts/  the original starter sandbox (scenes/main.tscn)
+play-windows.bat    play the game on Windows (exe if built, else from source)
+play.sh             the same for Linux/macOS
 setup/              install-toolchain.sh, setup-windows.bat, setup-macos.sh, fetch_godot_templates.py
 scripts/doctor.sh   environment checker
-tools/              blender/, openrouter/ (text + image assets), desktop/ (computer use), assets/ (Poly Haven)
-web/                three.js + Rapier + Vite game
+tools/              world/ (island + terrain textures), blender/ (trees, props, creatures), audio/,
+                    openrouter/ (text + image assets), desktop/ (computer use), assets/ (Poly Haven)
+web/                three.js + Rapier + Vite game (the original starter demo)
 ```
 
 ## Troubleshooting
