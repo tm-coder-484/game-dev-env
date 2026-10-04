@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Tomb of the Token</title>
+<meta name="description" content="A Claude-themed slide maze in the style of Tomb of the Mask. Every tomb is procedurally generated.">
+<meta name="theme-color" content="#141413">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -2 12 12' shape-rendering='crispEdges'%3E%3Cg fill='%23d97757'%3E%3Crect x='1' width='8' height='6'/%3E%3Crect y='2' width='10' height='2'/%3E%3Crect x='1' y='6' width='1' height='2'/%3E%3Crect x='3' y='6' width='1' height='2'/%3E%3Crect x='6' y='6' width='1' height='2'/%3E%3Crect x='8' y='6' width='1' height='2'/%3E%3C/g%3E%3Cg fill='%23141413'%3E%3Crect x='2' y='2' width='1' height='1'/%3E%3Crect x='7' y='2' width='1' height='1'/%3E%3C/g%3E%3C/svg%3E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tomb">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Silkscreen:wght@400;700&display=swap">
+</head>
+<body>
+<div id="app">
+  <canvas id="view" aria-label="Game board"></canvas>
+
+  <!-- In-game HUD -->
+  <div id="hud" hidden>
+    <div class="hud-top">
+      <div class="hud-coins" title="Coins"><img id="hud-coin-icon" alt=""><span id="hud-coins">0</span></div>
+      <div class="hud-mid">
+        <div id="hud-stars" class="hud-stars" aria-label="Stars"></div>
+        <div id="hud-height" class="hud-height" hidden>0 m</div>
+        <div id="hud-label" class="hud-label">Stage 1</div>
+      </div>
+      <button id="hud-pause" class="hud-pause" type="button" aria-label="Pause"><span></span><span></span></button>
+    </div>
+    <div id="hud-context" class="hud-context" hidden>
+      <span>context</span><span id="hud-context-bar" class="bar"></span><span id="hud-context-pct">100%</span>
+    </div>
+    <div class="hud-bottom">
+      <button id="hud-shield" class="hud-shield" type="button" aria-label="Use a shield"><img id="hud-shield-icon" alt=""><b id="hud-shield-n">1</b></button>
+      <div id="hud-powers" class="hud-powers"></div>
+    </div>
+  </div>
+
+  <!-- Title -->
+  <section id="screen-title" class="screen">
+    <div class="title-wrap">
+      <canvas id="logo" width="96" height="62" aria-label="Tomb of the Token"></canvas>
+      <div class="tui menu" role="menu" aria-label="Main menu">
+        <div class="tui-head"><span class="spark">✻</span> Welcome to <b>Tomb of the Token</b></div>
+        <p class="tui-sub">Slide Clawd through generated tombs. Every stage is built from its number, so stage 12 is the same for everyone.</p>
+        <div class="rows" id="title-rows"></div>
+      </div>
+      <p class="hint" id="title-hint">swipe or arrow keys to move · esc for menu</p>
+    </div>
+    <p class="fan">Unofficial fan game. Not affiliated with Anthropic or Tomb of the Mask.</p>
+  </section>
+
+  <!-- Stage map -->
+  <section id="screen-stages" class="screen page" hidden>
+    <header class="bar-top">
+      <button class="back" type="button" data-go="title">‹ Menu</button>
+      <h1>Stages</h1>
+      <span class="pill" id="stages-stars">✻ 0</span>
+    </header>
+    <div class="scroll" id="stages-list"></div>
+  </section>
+
+  <!-- Endless -->
+  <section id="screen-endless" class="screen page" hidden>
+    <header class="bar-top">
+      <button class="back" type="button" data-go="title">‹ Menu</button>
+      <h1>Endless climb</h1>
+      <span class="pill" id="endless-coins"></span>
+    </header>
+    <div class="center-col">
+      <div class="tui">
+        <div class="tui-head"><span class="spark">✻</span> The tomb never ends</div>
+        <p>New rooms are generated as you climb, and the context window rises faster the higher you get. It speeds up if you leave it far behind.</p>
+        <dl class="kv"><dt>Best height</dt><dd id="endless-best">0 m</dd></dl>
+        <button class="cta" type="button" id="endless-go">Start climbing</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Daily -->
+  <section id="screen-daily" class="screen page" hidden>
+    <header class="bar-top">
+      <button class="back" type="button" data-go="title">‹ Menu</button>
+      <h1>Daily tomb</h1>
+      <span class="pill" id="daily-date"></span>
+    </header>
+    <div class="center-col">
+      <div class="tui">
+        <div class="tui-head"><span class="spark">✻</span> <span id="daily-title">Today's tomb</span></div>
+        <p>One long tomb a day, generated from the date, with the context window rising. Everyone playing today gets the same layout.</p>
+        <dl class="kv"><dt>Your best</dt><dd id="daily-best">not played yet</dd></dl>
+        <button class="cta" type="button" id="daily-go">Play today's tomb</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Skins and shop -->
+  <section id="screen-skins" class="screen page" hidden>
+    <header class="bar-top">
+      <button class="back" type="button" data-go="title">‹ Menu</button>
+      <h1>Skins</h1>
+      <span class="pill" id="skins-coins"></span>
+    </header>
+    <div class="scroll">
+      <div class="shop-row tui" id="shop-shield"></div>
+      <div class="skin-grid" id="skins-grid"></div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="screen-settings" class="screen page" hidden>
+    <header class="bar-top">
+      <button class="back" type="button" data-go="title">‹ Menu</button>
+      <h1>Settings</h1>
+      <span></span>
+    </header>
+    <div class="scroll">
+      <div class="tui settings" id="settings-list"></div>
+      <div class="tui help" id="help">
+        <div class="tui-head"><span class="spark">✻</span> How to play</div>
+        <ul>
+          <li><b>Swipe</b> (or arrow keys, WASD, HJKL, a gamepad). Clawd slides until he hits a wall. You can't stop halfway.</li>
+          <li>Collect <b>tokens</b> (dots), <b>coins</b> and the three <b>stars</b>, then slide into the door at the top.</li>
+          <li><b>Spikes</b> only hurt if you stop on them. <b>Spike traps</b> (striped blocks) fire half a second after you pass next to them.</li>
+          <li><b>Bugs</b>, <b>gates</b>, <b>turret darts</b> and <b>snakes</b> cross corridors but never cover a spot where you can stop: wait there for a gap. <b>Puffers</b> shake, then puff up to 3x3.</li>
+          <li><b>Seal blocks</b> (dotted squares) turn solid once you pass. <b>Saws</b> wake when they see you and copy your path: keep moving and lead them over a seal block to break them.</li>
+          <li><b>Bounce pads</b> turn your slide 90 degrees. The <b>context window</b> rises from below on some stages. Keep climbing.</li>
+          <li>Power-ups: <b>shield</b> (survive one hit), <b>magnet</b> (pulls in tokens), <b>pause</b> (stops every hazard for 5 s).</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Overlays -->
+  <div id="loading" class="overlay" hidden>
+    <div class="spinner-line"><span class="spin" id="load-spin">✻</span> <span class="shimmer" id="load-verb">Excavating…</span> <span class="dim" id="load-meta"></span></div>
+    <div class="tree" id="load-lines"></div>
+  </div>
+
+  <div id="pause" class="overlay" hidden>
+    <div class="tui menu">
+      <div class="tui-head"><span class="spark">⏸</span> Paused · <span id="pause-label"></span></div>
+      <div class="rows" id="pause-rows"></div>
+      <p class="hint">esc to resume</p>
+    </div>
+  </div>
+
+  <div id="result" class="overlay" hidden>
+    <div class="tui result">
+      <div class="tui-head" id="result-head"></div>
+      <div class="tree" id="result-body"></div>
+      <div class="actions" id="result-actions"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <div id="boot" class="overlay boot"><div class="spinner-line"><span class="spin">✻</span> <span class="shimmer">Clauding…</span></div></div>
+</div>
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

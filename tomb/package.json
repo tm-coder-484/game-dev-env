@@ -1,0 +1,20 @@
+{
+  "name": "tomb-of-the-token",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "A Claude-themed Tomb of the Mask style maze game with procedural levels.",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build && node scripts/single-file.mjs",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --no-warnings test/generator.test.ts",
+    "e2e": "node scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

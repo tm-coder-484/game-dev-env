@@ -1,5 +1,6 @@
 # Builds every target on each push/PR and uploads them as downloadable artifacts:
-#   hollowvale-web, hollowvale-linux, hollowvale-windows, three-web (+ a headless screenshot).
+#   hollowvale-web, hollowvale-linux, hollowvale-windows, three-web (+ a headless screenshot),
+#   tomb-of-the-token (one self-contained HTML file: download, unzip, double-click).
 name: build
 
 on:
@@ -66,3 +67,32 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: three-web-screenshot, path: build/three-web.png, if-no-files-found: ignore }
+
+  tomb:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: tomb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tomb/package-lock.json
+      - run: npm ci
+      - name: Generator invariants (200 stages, daily, endless)
+        run: npm test
+      - name: Bot clears every stage with 3 stars under the real rules
+        run: node --experimental-strip-types --no-warnings test/play.test.ts --stages 200
+      - run: npm run build
+      - name: End-to-end in headless Chromium (touch, mouse, keys, saves)
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/e2e.mjs
+          node scripts/shots.mjs ../build/shots/tomb
+      - uses: actions/upload-artifact@v4
+        with: { name: tomb-of-the-token, path: tomb/dist/tomb-of-the-token.html }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: tomb-of-the-token-screenshots, path: build/shots/tomb, if-no-files-found: ignore }

@@ -4,6 +4,13 @@
 **Windows, Linux and in the browser**. You wash up on the southern beach with nothing. Gather,
 craft tools, hunt, keep warm and fed, and survive the nights, when the **Hollows** walk.
 
+> **Also here: [Tomb of the Token](tomb/README.md)**, a Claude-themed slide maze in the style of
+> *Tomb of the Mask* with procedurally generated, solver-checked tombs, playable on phones.
+> Double-click **`play-tomb.bat`** (Windows) or run **`./play-tomb.sh`**, or grab the
+> `tomb-of-the-token` build from the Actions tab.
+>
+> <img src="docs/images/tomb-gameplay.gif" width="240" alt="Tomb of the Token gameplay">
+
 #### Trigger rebuild
 
 | Tall wavy meadow grass | Forest edge |

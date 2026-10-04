@@ -13,16 +13,18 @@ XVFB    := $(if $(or $(DISPLAY),$(filter Darwin,$(shell uname))),,xvfb-run -a -s
 .PHONY: help setup doctor godot-import godot-editor godot-run godot-shot \
         export-web export-linux export-windows export-all serve-godot-web \
         web-dev web-build web-preview web-shot rock preview convert assets ai-server clean \
-        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons sfx
+        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons sfx \
+        tomb tomb-dev tomb-build tomb-test tomb-e2e tomb-shot
 
 help: ## list commands
-	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36mmake %-16s\033[0m %s\n", $$1, $$2}'
+	@grep -hE '^[a-zA-Z0-9_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36mmake %-16s\033[0m %s\n", $$1, $$2}'
 
 # ---------------------------------------------------------------- setup ----
 setup: ## install Godot + templates, Blender, tools (Linux/WSL), npm deps, import
 	bash setup/install-toolchain.sh
 	cd web && npm install --no-fund --no-audit
 	cd tools && npm install --no-fund --no-audit
+	cd tomb && npm install --no-fund --no-audit
 	$(MAKE) godot-import
 
 doctor: ## check tools, templates, network and keys
@@ -141,5 +143,25 @@ hud-placeholder: ## restore the vector placeholder HUD art
 ai-server: ## run the OpenRouter NPC backend on http://127.0.0.1:8787
 	node tools/openrouter/server.mjs
 
+# ------------------------------------------------- tomb of the token ----
+tomb: tomb-build ## build Tomb of the Token and open it in your browser
+	@f="$(abspath tomb/dist/tomb-of-the-token.html)"; echo "Tomb of the Token -> $$f"; \
+	(command -v xdg-open >/dev/null && xdg-open "$$f" >/dev/null 2>&1 &) || (command -v open >/dev/null && open "$$f") || true
+
+tomb-dev: ## Tomb of the Token with hot reload on http://localhost:5174
+	cd tomb && npx vite --host --port 5174
+
+tomb-build: ## typecheck + build -> tomb/dist (one self-contained tomb-of-the-token.html)
+	cd tomb && npm run build
+
+tomb-test: ## generator invariants (200 stages, endless) + the bot clears every stage under the real rules
+	cd tomb && npm test && node --experimental-strip-types --no-warnings test/play.test.ts --stages 200
+
+tomb-e2e: tomb-build ## headless Chromium: play stage 1 with touch, mouse and keys; saves, pause, endless, daily
+	cd tomb && node scripts/e2e.mjs
+
+tomb-shot: tomb-build ## screenshots of every screen (phone + desktop) -> build/shots/tomb/
+	cd tomb && node scripts/shots.mjs $(abspath $(SHOTS))/tomb
+
 clean: ## delete builds and caches
-	rm -rf $(BUILD) web/dist $(PROJECT)/.godot
+	rm -rf $(BUILD) web/dist tomb/dist $(PROJECT)/.godot
