@@ -2,6 +2,7 @@
 #   https://<user>.github.io/<repo>/        -> landing page
 #   .../godot/                              -> Godot Web export
 #   .../three/                              -> three.js game
+#   .../tomb/                               -> Tomb of the Token
 # One-time: repo Settings -> Pages -> Source: "GitHub Actions".
 # Then: Actions tab -> "deploy to pages" -> Run workflow.
 name: deploy to pages
@@ -34,15 +35,18 @@ jobs:
           godot --headless --path godot --import
           make export-web
           (cd web && npm ci && npm run build)
-          mkdir -p site
+          (cd tomb && npm ci && npm run build)
+          mkdir -p site/tomb
           cp -r build/web site/godot
           cp -r web/dist site/three
+          cp tomb/dist/tomb-of-the-token.html site/tomb/index.html
           cat > site/index.html <<'HTML'
           <!doctype html><meta charset="utf-8"><title>Hollowvale</title>
           <style>body{font:18px system-ui;margin:3rem;background:#0b0f14;color:#e8edf2}a{color:#8fd3ff}</style>
           <h1>Hollowvale</h1>
           <p>An open-world survival game. <a href="godot/">Play in the browser</a> (WebGL 2, ~115 MB first load)
           or <a href="godot/?play">skip the title screen</a>.</p>
+          <p><a href="tomb/">Tomb of the Token</a>: a Claude-themed slide maze with generated levels (works on phones).</p>
           <p>Starter demo: <a href="three/">three.js + Rapier</a></p>
           HTML
       - uses: actions/upload-pages-artifact@v3

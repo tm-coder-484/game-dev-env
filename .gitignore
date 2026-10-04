@@ -6,6 +6,8 @@ godot/*.tmp
 build/
 web/dist/
 web/node_modules/
+tomb/dist/
+tomb/node_modules/
 tools/node_modules/
 .npm-install.lock
 web/screenshot.png

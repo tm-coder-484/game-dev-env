@@ -4,6 +4,9 @@ Game-dev monorepo: a Godot 4.7 project (desktop and Web), a three.js + Rapier
 browser game, headless Blender tools, and OpenRouter AI tools. Both games share
 their assets from `godot/assets/shared/`.
 
+`tomb/` is **Tomb of the Token**, a separate Claude-themed slide-maze browser game (Vite + TypeScript, Canvas 2D, no
+runtime deps) with a procedural level generator (`tomb/src/gen.ts`); its build is one self-contained HTML file.
+
 The Godot project's main scene is **Hollowvale** (`godot/game/world/world.tscn`), an open-world survival
 game: generated island terrain, instanced grass/trees/props, day/night, wolves and night-time Hollows,
 crafting and a Minecraft-style survival HUD. Game code lives in `godot/game/` (world, player, enemies, ui,
@@ -25,6 +28,8 @@ systems, debug); the old starter sandbox is `scenes/main.tscn`.
 - `node tools/openrouter/assets.mjs models|concept|hud|ui-kit|icon|sprite|texture|sky|edit ...`: game art with any
   OpenRouter image model (`--model <id or fragment>`). Use `--dry-run` to check a request without spending money.
   `ui-kit` writes `godot/assets/ui/**`, which both games' HUDs load. `--placeholder` restores the vector art.
+- `make tomb-test` (generator invariants + a bot clears stages 1-200 with 3 stars), `make tomb-e2e` (Chromium plays stage 1
+  with touch/mouse/keys), `make tomb-shot` (screenshots -> `build/shots/tomb/`), `make tomb-dev`, `make tomb` (build + open).
 - `make ai-server`: backend for the in-game LLM NPC (needs `OPENROUTER_API_KEY`).
 - `node tools/desktop/desk.mjs ...` or the `desktop_*` MCP tools: computer use for native apps on a virtual display
   (`launch`, `shot`, `click`, `look`, `key --hold`, `type`, `windows`, `logs`, `record`, `kill`). Screenshots go to `build/shots/desktop/`.
@@ -44,6 +49,9 @@ systems, debug); the old starter sandbox is `scenes/main.tscn`.
   Read `build/shots/web.png` afterwards.
 - **Godot Web export:** `make export-web`, then `python3 -m http.server 8060 -d build/web &`, then
   `cd web && node scripts/screenshot.mjs http://127.0.0.1:8060/index.html ../build/shots/godot-web.png 45000`.
+- **Tomb of the Token:** generator or rule changes need `make tomb-test` to pass (it fails on any soft-lock, unfair hazard
+  or stage the bot can't 3-star). UI/render changes: `make tomb-e2e` and `make tomb-shot`, then Read the PNGs. Tests run
+  the TypeScript directly with `node --experimental-strip-types`, so keep `src/` free of enums and parameter properties.
 - **Blender scripts:** run them with `blender -b --factory-startup -P <script> -- <args>`, then `make preview MODEL=<out>`.
 - **Gameplay and input in the native build:** `make export-linux`, then drive it with the desktop tools.
   Launch with `--rendering-driver opengl3 --audio-driver Dummy` (~3–5 FPS on the CPU; Vulkan/Forward+ is ~1 FPS).

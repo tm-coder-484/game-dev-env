@@ -20,13 +20,13 @@ if ! command -v godot >/dev/null 2>&1 || ! command -v blender >/dev/null 2>&1 \
   bash setup/install-toolchain.sh >&2 || true
 fi
 
-# 2. npm packages for the web game and the tools (desktop MCP server, asset
+# 2. npm packages for the web games and the tools (desktop MCP server, asset
 #    pipeline). Fast no-op when up to date; npm install is cache-friendly.
 #    tools/desktop/mcp-launch.mjs may be installing tools/ right now (Claude Code
 #    starts MCP servers alongside this hook), so both take the same lock.
 lock=()
 command -v flock >/dev/null 2>&1 && lock=(flock .npm-install.lock)
-for dir in web tools; do
+for dir in web tomb tools; do
   if [ -f "$dir/package.json" ]; then
     (cd "$dir" && "${lock[@]}" npm install --no-fund --no-audit --loglevel=error >&2) || log "npm install failed in $dir"
   fi
