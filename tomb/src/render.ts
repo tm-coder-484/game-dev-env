@@ -2,9 +2,13 @@
 // nearest-neighbour filtering. Static walls are cached in 16-row bands.
 
 import {
-  W, DX, DY, UP, DOWN, IT_DOT, IT_COIN, IT_STAR, IT_SHIELD, IT_MAGNET, IT_FREEZE,
-} from './gen.ts';
-import { Game, bugXY, bugPos, gateOn, TRAP_DELAY, TRAP_OUT, MAGNET_R, type GameEvent } from './sim.ts';
+  W, DX, DY, UP, DOWN, IT_DOT, IT_COIN, IT_STAR, IT_SHIELD, IT_MAGNET, IT_FREEZE, PAD_SLASH,
+} from './core.ts';
+import { Game, MAGNET_R, type GameEvent } from './sim.ts';
+import {
+  bugXY, bugPos, gateOn, trapOut, TRAP_DELAY, pufferOn, pufferWarn, darts, dartXY, turretWarn,
+  snakeState, snakeSegment, SAW_TIMEOUT,
+} from './hazards.ts';
 import {
   T, C, type Theme, type Skin, type Pose, POSE_IDLE, clawdPixels, orient, drawClawd, drawBitmap,
   drawBitmapFacing, drawText, textWidth, SPINNER, spinnerFrame, SPARK, BUG, POWER_ICONS, GLYPHS, cellHash,
@@ -72,6 +76,9 @@ export class Renderer {
   private trail: [number, number, number][] = [];
   private winT = -1;
   private deathShown = false;
+  private padFlash = new Map<number, number>();
+  private sprites = new Map<string, HTMLCanvasElement>();
+  private tmp: number[] = [];
 
   constructor(canvas: HTMLCanvasElement, theme: Theme, skin: Skin) {
     this.canvas = canvas;
@@ -190,6 +197,30 @@ export class Renderer {
     } else if (e.type === 'chunk') {
       // New rows above: bands that touched the old top edge need redrawing.
       for (const [k, b] of this.bands) if (b.provisional) this.bands.delete(k);
+    } else if (e.type === 'seal') {
+      // The block turned solid: redraw the walls around it.
+      for (let y = e.y - 1; y <= e.y + 1; y++) this.bands.delete(Math.floor(y / BAND));
+      this.burst(cx(e.x), cy(e.y), 10 * many, this.theme.wallLight, 35);
+      if (fx.shake) this.shake(0.06, 1);
+    } else if (e.type === 'bounce') {
+      this.padFlash.set(e.y * 64 + e.x, this.time);
+      for (let i = 0; i < 4 * many; i++) this.spawn(cx(e.x), cy(e.y), (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50, 0.25, C.clay, 1, 6);
+    } else if (e.type === 'hazard') {
+      const x = cx(e.x);
+      const y = cy(e.y);
+      if (e.kind === 'sawbreak' || e.kind === 'sawout') {
+        this.burst(x, y, 24 * many, this.theme.hazard, 70);
+        this.burst(x, y, 8 * many, C.light, 40);
+        if (fx.shake && e.kind === 'sawbreak') this.shake(0.15, 2);
+        this.floaters.push({ x, y: y - 6, text: e.kind === 'sawbreak' ? 'CRASH' : 'TIMEOUT', color: C.light, t: 0 });
+      } else if (e.kind === 'snake') {
+        this.burst(x, y, 14 * many, this.theme.wallLight, 50);
+        if (fx.shake) this.shake(0.2, 1);
+      } else if (e.kind === 'spring') {
+        this.burst(x, y, 6 * many, C.light, 30);
+      } else if (e.kind === 'sawwake') {
+        this.floaters.push({ x, y: y - 8, text: '!', color: this.theme.hazard, t: 0 });
+      }
     }
   }
 
@@ -247,10 +278,15 @@ export class Renderer {
       for (const k of this.bands.keys()) if (Math.abs(k - r0 / BAND) > 6) this.bands.delete(k);
     }
     if (game.mode !== 'endless') this.drawExit(game);
+    this.drawPads(game, r0, r1);
     this.drawItems(game, r0, r1);
     this.drawGates(game, r0, r1);
     this.drawTraps(game, r0, r1);
+    this.drawTurrets(game, r0, r1);
     this.drawBugs(game, r0, r1);
+    this.drawPuffers(game, r0, r1);
+    this.drawSnakes(game, r0, r1);
+    this.drawSaws(game, r0, r1);
     this.drawPlayer(game, dt);
     this.drawParticles(dt);
     this.drawFlood(game, cam);
@@ -329,7 +365,43 @@ export class Renderer {
         for (let d = 0; d < 4; d++) if (s & (1 << d)) this.teeth(g, this.boardX + x * T, (y - y0) * T, d, 4, th.hazard, th.light ? th.hazardDark : C.light);
       }
     }
-    for (const gt of w.gates) {
+    for (let y = y0; y < y0 + BAND; y++) {
+      for (let x = 0; x < W; x++) {
+        const st = w.seal(x, y);
+        if (st === 1) this.sealTile(g, this.boardX + x * T, (y - y0) * T, false);
+        else if (st === 2) this.sealTile(g, this.boardX + x * T, (y - y0) * T, true);
+      }
+    }
+    for (const t of w.hz.traps) {
+      if (t.y < y0 || t.y >= y0 + BAND) continue;
+      const ox = this.boardX + t.x * T;
+      const oy = (t.y - y0) * T;
+      // A block with warning stripes, like the original's spike traps.
+      g.fillStyle = th.hazardDark;
+      g.fillRect(ox + 1, oy + 1, T - 2, T - 2);
+      g.fillStyle = th.hazard;
+      for (let i = -T; i < T; i += 4) for (let k = 0; k < T - 2; k++) {
+        const px = i + k;
+        if (px >= 0 && px < T - 2 && (k + i) % 4 < 2) g.fillRect(ox + 1 + px, oy + 1 + k, 1, 1);
+      }
+    }
+    for (const t of w.hz.turrets) {
+      if (t.y < y0 || t.y >= y0 + BAND) continue;
+      const ox = this.boardX + t.x * T;
+      const oy = (t.y - y0) * T;
+      g.fillStyle = th.hazardDark;
+      g.fillRect(ox + 2, oy + 2, T - 4, T - 4);
+      g.fillStyle = th.hazard;
+      g.fillRect(ox + 3, oy + 3, T - 6, T - 6);
+      // The muzzle on the face it fires from.
+      const mx = ox + 4 + DX[t.dir] * 4;
+      const my = oy + 4 + DY[t.dir] * 4;
+      g.fillStyle = th.hazardDark;
+      g.fillRect(mx, my, 4, 4);
+      g.fillStyle = th.bg;
+      g.fillRect(mx + 1, my + 1, 2, 2);
+    }
+    for (const gt of w.hz.gates) {
       if (gt.y < y0 || gt.y >= y0 + BAND) continue;
       const ox = this.boardX + gt.x * T;
       const oy = (gt.y - y0) * T;
@@ -506,7 +578,7 @@ export class Renderer {
   private drawGates(game: Game, r0: number, r1: number): void {
     const a = this.a;
     const th = this.theme;
-    for (const g of game.world.gates) {
+    for (const g of game.world.hz.gates) {
       if (g.y < r0 || g.y > r1) continue;
       const ox = this.boardX + g.x * T;
       const oy = g.y * T;
@@ -532,31 +604,272 @@ export class Renderer {
     }
   }
 
+  /** Seal blocks: dotted while open, a solid block once Clawd has passed. */
+  private sealTile(g: CanvasRenderingContext2D, ox: number, oy: number, closed: boolean): void {
+    const th = this.theme;
+    if (closed) {
+      g.fillStyle = th.wall;
+      g.fillRect(ox + 1, oy + 1, T - 2, T - 2);
+      g.fillStyle = th.wallLight;
+      for (let i = 1; i < T - 1; i++) {
+        g.fillRect(ox + i, oy + i, 1, 1);
+        g.fillRect(ox + T - 1 - i, oy + i, 1, 1);
+      }
+    }
+    g.fillStyle = th.wallLight;
+    for (let i = 1; i < T - 1; i += 2) {
+      g.fillRect(ox + i, oy + 1, 1, 1);
+      g.fillRect(ox + i, oy + T - 2, 1, 1);
+      g.fillRect(ox + 1, oy + i, 1, 1);
+      g.fillRect(ox + T - 2, oy + i, 1, 1);
+    }
+  }
+
+  private drawPads(game: Game, r0: number, r1: number): void {
+    const a = this.a;
+    const w = game.world;
+    for (let y = r0; y <= r1; y++) {
+      const row = w.pads.get(y);
+      if (!row) continue;
+      for (let x = 0; x < W; x++) {
+        const p = row[x];
+        if (!p) continue;
+        const ox = this.boardX + x * T;
+        const oy = y * T;
+        const lit = this.time - (this.padFlash.get(y * 64 + x) ?? -9) < 0.15;
+        // A thick diagonal bumper with bolts at both ends.
+        for (let i = 1; i < T - 1; i++) {
+          const yy = p === PAD_SLASH ? T - 1 - i : i;
+          a.fillStyle = lit ? C.light : C.clay;
+          a.fillRect(ox + i, oy + yy, 1, 1);
+          a.fillRect(ox + i, oy + yy + (p === PAD_SLASH ? -1 : 1), 1, 1);
+          a.fillStyle = lit ? C.clay : C.shimmer;
+          a.fillRect(ox + i, oy + yy + (p === PAD_SLASH ? 1 : -1), 1, 1);
+        }
+        a.fillStyle = C.light;
+        if (p === PAD_SLASH) {
+          a.fillRect(ox + 1, oy + T - 3, 2, 2);
+          a.fillRect(ox + T - 3, oy + 1, 2, 2);
+        } else {
+          a.fillRect(ox + 1, oy + 1, 2, 2);
+          a.fillRect(ox + T - 3, oy + T - 3, 2, 2);
+        }
+      }
+    }
+  }
+
   private drawTraps(game: Game, r0: number, r1: number): void {
     const th = this.theme;
-    for (const t of game.world.traps) {
+    const a = this.a;
+    for (const t of game.world.hz.traps) {
       if (t.y < r0 || t.y > r1) continue;
       const ox = this.boardX + t.x * T;
       const oy = t.y * T;
       const since = t.armedAt >= 0 ? game.hz - t.armedAt : -1;
-      if (since >= TRAP_DELAY && since < TRAP_DELAY + TRAP_OUT) {
-        this.teeth(this.a, ox, oy, t.face, 5, th.hazard, C.light);
-      } else {
-        // Retracted: a dark slot in the wall with two nubs that rattle once armed.
-        const armed = since >= 0 && since < TRAP_DELAY;
-        const col = armed && Math.floor(this.time * 20) % 2 ? C.light : th.hazard;
-        const jit = armed ? Math.round(Math.sin(this.time * 60)) : 0;
-        const a = this.a;
-        const put = (u: number, v: number, c: string) => {
-          a.fillStyle = c;
-          if (t.face === UP) a.fillRect(ox + u, oy + v, 1, 1);
-          else if (t.face === DOWN) a.fillRect(ox + u, oy + T - 1 - v, 1, 1);
-          else if (t.face === 3) a.fillRect(ox + v, oy + u, 1, 1);
-          else a.fillRect(ox + T - 1 - v, oy + u, 1, 1);
-        };
-        for (let u = 1; u < T - 1; u++) put(u, 0, th.hazardDark);
-        for (const u of [2, 3, 8, 9]) put(u + jit, 1, col);
+      if (trapOut(t, game.hz)) {
+        // Spikes out of every face that has floor beside it.
+        for (let d = 0; d < 4; d++) {
+          const fx = t.x + DX[d];
+          const fy = t.y + DY[d];
+          if (!game.world.cell(fx, fy)) continue;
+          this.teeth(a, this.boardX + fx * T, fy * T, (d + 2) & 3, 6, th.hazard, C.light);
+        }
+      } else if (since >= 0 && since < TRAP_DELAY && Math.floor(this.time * 20) % 2) {
+        a.fillStyle = C.light;
+        a.globalAlpha = 0.7;
+        a.fillRect(ox + 1, oy + 1, T - 2, T - 2);
+        a.globalAlpha = 1;
+      } else if (Math.floor(this.time * 2) % 2) {
+        // Dormant traps pulse slowly so you can spot them.
+        a.globalAlpha = 0.25;
+        a.fillStyle = th.hazard;
+        a.fillRect(ox + 1, oy + 1, T - 2, T - 2);
+        a.globalAlpha = 1;
       }
+    }
+  }
+
+  private drawTurrets(game: Game, r0: number, r1: number): void {
+    const a = this.a;
+    const th = this.theme;
+    game.world.hz.turrets.forEach((t) => {
+      if (t.y < r0 - 9 || t.y > r1 + 9) return;
+      const warn = turretWarn(t, game.hz);
+      if (warn > 0 && Math.floor(this.time * 24) % 2) {
+        const mx = this.boardX + t.x * T + 4 + DX[t.dir] * 4;
+        const my = t.y * T + 4 + DY[t.dir] * 4;
+        a.fillStyle = C.light;
+        a.fillRect(mx, my, 4, 4);
+      }
+      for (const s of darts(t, game.hz, this.tmp)) {
+        const [dx, dy] = dartXY(t, s);
+        const px = Math.round(this.boardX + dx * T + T / 2);
+        const py = Math.round(dy * T + T / 2);
+        // A 6x2 dart with a bright tip, pointing where it flies.
+        const hx = DX[t.dir];
+        const hy = DY[t.dir];
+        a.fillStyle = th.hazard;
+        for (let i = -3; i <= 2; i++) a.fillRect(px + hx * i - (hy ? 1 : 0), py + hy * i - (hx ? 1 : 0), hx ? 1 : 2, hx ? 2 : 1);
+        a.fillStyle = C.light;
+        a.fillRect(px + hx * 3 - (hy ? 1 : 0), py + hy * 3 - (hx ? 1 : 0), hx ? 1 : 2, hx ? 2 : 1);
+      }
+    });
+  }
+
+  /** Cached pixel sprites, rebuilt per theme. */
+  private sprite(key: string, size: number, draw: (g: CanvasRenderingContext2D) => void): HTMLCanvasElement {
+    const k = `${this.theme.name}:${key}`;
+    let c = this.sprites.get(k);
+    if (!c) {
+      c = document.createElement('canvas');
+      c.width = c.height = size;
+      draw(c.getContext('2d')!);
+      this.sprites.set(k, c);
+    }
+    return c;
+  }
+
+  private disc(g: CanvasRenderingContext2D, cx: number, cy: number, r: number, color: string): void {
+    g.fillStyle = color;
+    for (let y = -r; y <= r; y++) {
+      const half = Math.floor(Math.sqrt(r * r - y * y + r * 0.6));
+      g.fillRect(cx - half, cy + y, half * 2 + 1, 1);
+    }
+  }
+
+  private drawPuffers(game: Game, r0: number, r1: number): void {
+    const a = this.a;
+    const th = this.theme;
+    const small = this.sprite('puff-small', 12, (g) => {
+      this.disc(g, 6, 6, 5, th.hazardDark);
+      this.disc(g, 6, 6, 4, th.hazard);
+      g.fillStyle = th.hazardDark;
+      g.fillRect(4, 4, 1, 2);
+      g.fillRect(7, 4, 1, 2);
+      g.fillRect(4, 7, 4, 1);
+      g.fillRect(3, 6, 1, 1);
+      g.fillRect(8, 6, 1, 1);
+    });
+    const big = this.sprite('puff-big', 37, (g) => {
+      // Spikes all round, then the body.
+      g.fillStyle = th.hazard;
+      for (let i = 0; i < 16; i++) {
+        const an = (i / 16) * Math.PI * 2;
+        for (let r = 13; r <= 18; r++) g.fillRect(Math.round(18 + Math.cos(an) * r), Math.round(18 + Math.sin(an) * r), 1, 1);
+      }
+      this.disc(g, 18, 18, 14, th.hazardDark);
+      this.disc(g, 18, 18, 13, th.hazard);
+      g.fillStyle = th.hazardDark;
+      for (let i = 0; i < 10; i++) {
+        const an = (i / 10) * Math.PI * 2 + 0.3;
+        g.fillRect(Math.round(18 + Math.cos(an) * 8), Math.round(18 + Math.sin(an) * 8), 2, 1);
+      }
+      g.fillStyle = th.light ? C.light : C.dark;
+      g.fillRect(12, 13, 3, 3);
+      g.fillRect(22, 13, 3, 3);
+      g.fillRect(14, 22, 9, 2);
+    });
+    for (const p of game.world.hz.puffers) {
+      if (p.y < r0 - 2 || p.y > r1 + 2) continue;
+      const cx = this.boardX + p.x * T + T / 2;
+      const cy = p.y * T + T / 2;
+      if (pufferOn(p, game.hz)) {
+        a.drawImage(big, Math.round(cx - 18), Math.round(cy - 18));
+      } else {
+        const warn = pufferWarn(p, game.hz);
+        const jx = warn > 0 ? Math.round(Math.sin(this.time * 50) * warn * 1.5) : 0;
+        const grow = warn > 0.6 ? 2 : 0;
+        a.drawImage(small, Math.round(cx - 6 + jx - grow / 2), Math.round(cy - 6 - grow / 2), 12 + grow, 12 + grow);
+      }
+    }
+  }
+
+  private drawSnakes(game: Game, r0: number, r1: number): void {
+    const a = this.a;
+    const th = this.theme;
+    for (const s of game.world.hz.snakes) {
+      const lo = s.horiz ? s.line : Math.min(s.a, s.b);
+      const hi = s.horiz ? s.line : Math.max(s.a, s.b);
+      if (hi < r0 - 1 || lo > r1 + 1) continue;
+      const st = snakeState(s, game.hz);
+      if (!st) continue;
+      const [ax, ay] = snakeSegment(s, 0);
+      if (st.head < 0) {
+        // The wall it will burst from shakes and cracks.
+        if (Math.floor(this.time * 16) % 2) {
+          const ox = this.boardX + ax * T;
+          const oy = ay * T;
+          a.fillStyle = th.hazard;
+          for (let i = 2; i < T - 2; i += 3) {
+            a.fillRect(ox + i, oy + 2 + ((i * 7) % 6), 2, 1);
+            a.fillRect(ox + 2 + ((i * 5) % 6), oy + i, 1, 2);
+          }
+        }
+        continue;
+      }
+      const span = Math.abs(s.b - s.a);
+      const dir = s.horiz ? (s.b > s.a ? 1 : 3) : s.b > s.a ? 2 : 0;
+      for (let i = s.body - 1; i >= 0; i--) {
+        const al = st.head - i;
+        if (al < 0 || al > span) continue;
+        const [sx, sy] = snakeSegment(s, al);
+        const ox = Math.round(this.boardX + sx * T);
+        const oy = Math.round(sy * T);
+        a.fillStyle = th.hazardDark;
+        a.fillRect(ox + 1, oy + 1, T - 2, T - 2);
+        a.fillStyle = th.hazard;
+        a.fillRect(ox + 2, oy + 2, T - 4, T - 4);
+        a.fillStyle = th.hazardDark;
+        a.fillRect(ox + 4, oy + 4, 2, 2);
+        a.fillRect(ox + 7, oy + 6, 2, 2);
+        if (i === 0) {
+          // Head: eyes looking where it goes, and a flicking tongue.
+          const ex = DX[dir];
+          const ey = DY[dir];
+          a.fillStyle = th.light ? C.light : C.dark;
+          a.fillRect(ox + 5 + ex * 3 - (ey ? 3 : 0), oy + 5 + ey * 3 - (ex ? 3 : 0), 2, 2);
+          a.fillRect(ox + 5 + ex * 3 + (ey ? 3 : 0), oy + 5 + ey * 3 + (ex ? 3 : 0), 2, 2);
+          if (Math.floor(this.time * 8) % 2) {
+            a.fillStyle = C.clay;
+            a.fillRect(ox + 5 + ex * 7, oy + 5 + ey * 7, ex ? 3 : 2, ey ? 3 : 2);
+          }
+        }
+      }
+    }
+  }
+
+  private drawSaws(game: Game, r0: number, r1: number): void {
+    const a = this.a;
+    const th = this.theme;
+    for (const s of game.world.hz.saws) {
+      if (s.mode === 2) continue;
+      if (s.y < r0 - 1 || s.y > r1 + 1) continue;
+      let cx: number;
+      let cy: number;
+      let spin: number;
+      if (s.mode === 0) {
+        // Half buried in the wall, peeking out towards the corridor.
+        cx = this.boardX + s.hx * T + T / 2 + (s.ex - s.hx) * 4;
+        cy = s.hy * T + T / 2 + (s.ey - s.hy) * 4;
+        spin = 0;
+      } else {
+        cx = this.boardX + s.x * T + T / 2;
+        cy = s.y * T + T / 2;
+        spin = this.time * 18;
+      }
+      const left = s.mode === 1 ? SAW_TIMEOUT - (game.hz - s.wokeAt) : SAW_TIMEOUT;
+      const blink = left < 2.5 && Math.floor(this.time * 10) % 2;
+      const color = blink ? C.light : th.hazard;
+      a.fillStyle = color;
+      for (let i = 0; i < 8; i++) {
+        const an = spin + (i / 8) * Math.PI * 2;
+        a.fillRect(Math.round(cx + Math.cos(an) * 5.5) - 1, Math.round(cy + Math.sin(an) * 5.5) - 1, 2, 2);
+      }
+      this.disc(a, Math.round(cx), Math.round(cy), 4, th.hazardDark);
+      this.disc(a, Math.round(cx), Math.round(cy), 3, color);
+      a.fillStyle = th.hazardDark;
+      a.fillRect(Math.round(cx + Math.cos(spin) * 2), Math.round(cy + Math.sin(spin) * 2), 1, 1);
+      a.fillRect(Math.round(cx - Math.cos(spin) * 2), Math.round(cy - Math.sin(spin) * 2), 1, 1);
     }
   }
 
@@ -564,7 +877,7 @@ export class Renderer {
     const a = this.a;
     const th = this.theme;
     const frame = BUG[Math.floor(game.hz * 10) % 2];
-    for (const b of game.world.bugs) {
+    for (const b of game.world.hz.bugs) {
       const [bx, by] = bugXY(b, game.hz);
       if (by < r0 - 1 || by > r1 + 1) continue;
       const ahead = bugPos(b, game.hz + 0.02) - bugPos(b, game.hz);

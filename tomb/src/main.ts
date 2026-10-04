@@ -28,8 +28,12 @@ const TIPS = [
   'Clawd only stops when he hits a wall. Plan where each slide ends.',
   'All three stars sit on one route, so you can always collect them in one run.',
   'Spikes only hurt if you stop on them. Sliding past is fine.',
-  'Bugs and gates never cover a spot where you can stop. Wait there for a gap.',
-  'Traps spring half a second after you land. Keep moving.',
+  'Bugs, gates, darts and snakes never cover a spot where you can stop. Wait there for a gap.',
+  'Spike traps fire half a second after you pass next to them. Keep moving.',
+  'Seal blocks turn solid behind you. Lead a saw across one to break it.',
+  'Bounce pads turn you 90 degrees, from either side.',
+  'A puffer shakes just before it puffs up. Get out of its 3x3 reach.',
+  'Saws copy your moves but cut the corner when you turn back. Never double back on one.',
   'Swipe in an L shape to queue a second slide.',
   'Each stage is generated from its number, so your friends get the same tomb.',
   'The pause power-up stops the context window too.',
@@ -39,7 +43,11 @@ const CAUSES: Record<string, [string, string]> = {
   spikes: ['Stopped on spikes', 'Spikes only hurt when you stop on them. Sliding past is fine.'],
   bug: ['Bitten by a bug', 'Bugs cross corridors. Standing still is safe, so wait for the gap.'],
   gate: ['Zapped by a gate', 'Gates blink before they switch on. Slide through while the line is dotted.'],
-  trap: ['A trap sprang shut', 'Traps fire half a second after you land. Keep moving.'],
+  trap: ['A spike trap fired', 'Spike traps fire half a second after you move next to them. Keep moving.'],
+  dart: ['Hit by a dart', 'Turrets flash just before they fire. Slide across between darts.'],
+  puffer: ['Caught by a puffer', 'Puffers shake right before they puff up to 3x3. Leave their reach.'],
+  snake: ['Run over by a snake', 'The wall flashes before a snake bursts out. Wait for it to pass.'],
+  saw: ['Caught by a saw', 'Saws follow your path. Keep moving, never turn back, and lead them across a seal block.'],
   context: ['Context limit reached', 'The context window caught up with Clawd. Keep climbing.'],
 };
 
@@ -476,9 +484,15 @@ class App {
         for (const s of L.spikes) for (let b = s; b; b &= b - 1) spikes++;
         const hz = [
           plural(spikes, 'spike'),
+          plural(L.traps.length, 'spike trap'),
           plural(L.bugs.length, 'bug'),
           plural(L.gates.length, 'gate'),
-          plural(L.traps.length, 'trap'),
+          plural(L.turrets.length, 'turret'),
+          plural(L.puffers.length, 'puffer'),
+          plural(L.snakes.length, 'snake'),
+          plural(L.saws.length, 'saw'),
+          plural(L.seals.length, 'seal block'),
+          plural(L.pads.filter(Boolean).length, 'bounce pad'),
         ].filter((x) => !x.startsWith('0 '));
         const info: string[] =
           spec.kind === 'endless'
@@ -544,7 +558,13 @@ class App {
       ['bugs', L.bugs.length > 0, '<b>Bugs</b> cross corridors. Standing still is safe; go when there is a gap.'],
       ['flood', game.floodSpeed > 0, 'The <b>context window</b> is rising. Reach the door before it fills up.'],
       ['gates', L.gates.length > 0, '<b>Gates</b> blink, then switch on. Slide through while the line is dotted.'],
-      ['traps', L.traps.length > 0, '<b>Traps</b> spring half a second after you land on them.'],
+      ['traps', L.traps.length > 0, '<b>Spike traps</b> (striped blocks) fire half a second after you pass next to them.'],
+      ['seals', L.seals.length > 0, '<b>Seal blocks</b> (dotted squares) turn solid once you slide over them.'],
+      ['pads', L.pads.some(Boolean), '<b>Bounce pads</b> turn your slide 90 degrees.'],
+      ['turrets', L.turrets.length > 0, '<b>Turrets</b> flash, then fire darts across the corridor.'],
+      ['puffers', L.puffers.length > 0, '<b>Puffers</b> puff up to 3x3 every few seconds. They shake first.'],
+      ['saws', L.saws.length > 0, '<b>Saws</b> wake when they see you and copy your path. Lead them over a seal block.'],
+      ['snakes', L.snakes.length > 0, '<b>Snakes</b> burst out of flashing walls and cross the corridors.'],
     ];
     const t = tips.find(([k, on]) => on && has(k));
     if (!t) return;
@@ -618,9 +638,24 @@ class App {
         s.shield();
         this.buzz(40);
         break;
-      case 'trap':
-        s.trap();
+      case 'bounce':
+        s.bounce();
         break;
+      case 'seal':
+        s.seal();
+        break;
+      case 'hazard': {
+        // Only hazards near Clawd make noise.
+        if (Math.abs(e.y - g.y) > 9) break;
+        if (e.kind === 'trap') s.trap();
+        else if (e.kind === 'spring') s.spring();
+        else if (e.kind === 'fire') s.fire();
+        else if (e.kind === 'puff') s.puff();
+        else if (e.kind === 'snake') s.snake();
+        else if (e.kind === 'sawwake') s.sawWake();
+        else s.sawBreak();
+        break;
+      }
       case 'death':
         s.death(e.cause);
         this.buzz(120);

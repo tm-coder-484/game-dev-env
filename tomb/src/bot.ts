@@ -30,9 +30,10 @@ export class Bot {
     if (!this.plan.length) this.replan(-1);
     const d = this.plan[0];
     if (d === undefined) return;
-    if (g.t - g.lastStop < this.pause && g.moves > 0) return;
+    // Think before each slide, except with a saw on your tail.
+    if (g.t - g.lastStop < (g.chased ? 0.1 : this.pause) && g.moves > 0) return;
     for (let w = 0; w <= 8; w += 0.05) {
-      if (g.safeMove(d, w)) {
+      if (g.safeMove(d, w, this.plan[1] ?? -1, this.pause)) {
         if (w < 0.03) {
           this.plan.shift();
           this.stuck = 0;
@@ -65,8 +66,8 @@ export class Bot {
       const k = key(x, y);
       for (let d = 0; d < 4; d++) {
         if (k === start && d === avoidFirst) continue;
-        const r = w.slide(x, y, d);
-        if (r.len === 0 || w.spike(r.x, r.y) & (1 << d)) continue;
+        const r = w.trace(x, y, d);
+        if (r.len === 0 || w.spike(r.x, r.y) & (1 << r.dir)) continue;
         const nk = key(r.x, r.y);
         if (parent.has(nk)) continue;
         parent.set(nk, k * 4 + d);

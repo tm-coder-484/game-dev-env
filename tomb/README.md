@@ -1,9 +1,10 @@
 # Tomb of the Token
 
 A Claude-themed slide maze in the style of *Tomb of the Mask*. Clawd slides until he hits a
-wall, so every swipe is a commitment. Collect tokens, coins and three stars, dodge spikes, bugs,
-gates and traps, and reach the door before the **context window** fills the tomb from below.
-Every tomb is **procedurally generated** and checked by a solver before you see it.
+wall, so every swipe is a commitment. Collect tokens, coins and three stars, and get past spikes,
+spike traps, bugs, gates, turrets, puffers, snakes and chasing saws, bounce pads and seal blocks.
+Reach the door before the **context window** fills the tomb from below. Every tomb is
+**procedurally generated** and checked by a solver before you see it.
 
 ![Gameplay](../docs/images/tomb-gameplay.gif)
 
@@ -20,7 +21,7 @@ autopilot playing stage 17).
 
 ## Play it
 
-The build is a single 95 KB HTML file with everything inlined (code, pixel art, sound). It runs
+The build is a single 120 KB HTML file with everything inlined (code, pixel art, sound). It runs
 offline, needs no server, and works on phones.
 
 | | How |
@@ -45,18 +46,30 @@ Links: `#stage-12`, `#endless` and `#daily` jump straight into a stage or mode.
 
 ## What's in the tomb
 
-| Thing | What it does |
-|---|---|
-| **Tokens** (dots) | Fill every corridor. Collecting them quickly plays a rising scale. |
-| **Coins** (the ✻ spinner) | Spend them on skins and shields. |
-| **Stars** (three per stage) | Your stage rating. They sit on detours. |
-| **Exit door** | At the top of each stage. Its spark lights up once you hold all three stars. |
-| **Spikes** | Only hurt if you *stop* on them. Sliding past is fine. |
-| **Bugs** | Patrol lanes that cross your corridors. Standing still is always safe. |
-| **Gates** | Blink, then switch on. Slide through while the line is dotted. |
-| **Traps** | Spring half a second after you land. Keep moving. |
-| **Context window** | Rises from below on some stages and in endless mode. Keep climbing. |
-| **Power-ups** | Shield (one hit), magnet (pulls in tokens and coins), pause (stops every hazard and the context window for 5 s). |
+![Spike traps, seal blocks, bounce pads, a puffed-up puffer, a snake with turrets, and a saw on Clawd's trail](../docs/images/tomb-hazards.jpg)
+
+| Thing | From stage | What it does |
+|---|---|---|
+| **Tokens** (dots) | 1 | Fill every corridor. Collecting them quickly plays a rising scale. |
+| **Coins** (the ✻ spinner) | 1 | Spend them on skins and shields. |
+| **Stars** (three per stage) | 1 | Your stage rating. They sit on detours. |
+| **Exit door** | 1 | At the top of each stage. Its spark lights up once you hold all three stars. |
+| **Spikes** | 2 | Only hurt if you *stop* on them. Sliding past is fine. |
+| **Power-ups** | 3 | Shield (one hit), magnet (pulls in tokens and coins), pause (stops every hazard and the context window for 5 s). |
+| **Bugs** | 4 | Patrol lanes that cross your corridors. Standing still is always safe. |
+| **Context window** | 5 | Rises from below on some stages and in endless mode. Keep climbing. |
+| **Spike traps** (striped blocks) | 6 | Fire spikes out of every side half a second after you move next to them. |
+| **Gates** | 7 | Blink, then switch on. Slide through while the line is dotted. |
+| **Seal blocks** (dotted squares) | 8 | Turn solid once you've passed over them, so the maze changes behind you. |
+| **Bounce pads** | 10 | Turn your slide 90 degrees, from either side. |
+| **Turrets** | 12 | Flash, then fire darts across the corridor about once a second. |
+| **Puffers** | 14 | Solid blocks that shake, then puff up to cover the 3×3 around them. |
+| **Saws** | 17 | Sleep in a wall until they see you, then copy your path, cutting the corner if you turn back. Lead them over a seal block to break them; they give up after 12 s. |
+| **Snakes** | 18 | A wall flashes, then a snake bursts out and crosses the corridors to the far wall. |
+
+These follow the original's behaviour as described on the fan wikis (spike traps fire ~0.5 s after
+you move near them, fish cannons fire every ~1.1 s, fish balloon from 1×1 to 3×3, saws copy your
+moves until they hit a sealed block, snakes burst through flashing walls).
 
 **Modes:** endless **Stages** (five worlds of ten, cycling: Terminal, Blueprint, Sage, Ivory,
 Kraft), an **Endless climb** that generates new rooms as you go and speeds the context window up the
@@ -81,36 +94,57 @@ that graph rather than on the picture.
 
    Rooms are also rolled back if no slide can enter them. Floor that nothing can slide into goes
    back to rock at the end.
-3. **Spikes** are placed on wall faces where some slide stops. A spike turns that move into a death
+3. **Bounce pads** are part of the slide rules, so the graph follows them. A pad is kept only if
+   some slide uses it, the level stays valid, and no slide bounces forever.
+4. **Spikes** are placed on wall faces where some slide stops. A spike turns that move into a death
    move, so each one is only kept if the level is still solvable and soft-lock free *without* that
    move, and almost no corridor becomes unreachable.
-4. **Moving hazards are fair by construction:**
-   - bugs and gates are never placed on a cell where a slide can stop, so standing still is always safe;
-   - a bug only patrols a lane that slides cross at right angles (a slide *along* its lane could never dodge it);
-   - no single slide crosses more than one moving hazard;
-   - traps only go on stops whose every exit is free of movers, so leaving at once is always safe.
 5. **Stars** are chosen in order (bottom third, middle, top) along a route that is built as it goes.
    Each star is a detour from wherever the previous star left you, so **all three can always be
    collected in one run**. That route is saved with the level.
-6. **The context window** is timed against that star route, with reaction time and a budget for
-   waiting at hazards, then given slack.
-7. Several candidate layouts are generated per stage and the best is kept, scored on solution
-   length, forks, stops per row and floor density. Generation is deterministic (stage *n* is the
-   same everywhere) and takes about 10-60 ms.
+6. **Seal blocks** go on cells that route slides over. Sealing changes the maze as you play, so the
+   check runs over every reachable **(position, sealed blocks)** state: every one of them must
+   still reach the exit, no slide may stop on a seal, and the star route must still work with the
+   blocks sealing behind it.
+7. **Timed hazards** are fair by construction:
+   - bugs, gates, dart lines and snakes never cover a cell where you can stand (in any sealed
+     state), so standing still is safe from them;
+   - bugs and snakes only patrol lanes that slides cross at right angles (a slide *along* their
+     lane could never dodge them);
+   - no single slide crosses two different timed hazards;
+   - spike traps and puffers may reach a stop, but every way out of such a stop is hazard-free,
+     so leaving straight away is always safe.
+8. **Saws** are placed first. Each candidate is played against the star route at a careful human
+   pace. It's kept only if the route stays ahead of it without ever crossing its own trail, until
+   it crashes into a seal block or gives up. Nothing that would make you wait may sit along that
+   escape.
+9. **The context window** is timed against the star route, with reaction time and a budget for
+   waiting at each kind of hazard, then given slack.
+10. Several candidate layouts are generated per stage and the best is kept, scored on solution
+    length, forks, stops per row and floor density. Generation is deterministic (stage *n* is the
+    same everywhere) and takes about 30-200 ms.
 
-Endless mode uses the same generator for 24-row chunks. Each chunk enters through a door in the
-row it shares with the chunk below. Sliding back down through that door counts as returning to the
-chunk's entrance, which is valid because the chunk below was itself verified to lead back up.
+Endless mode uses the same generator for 24-row chunks (with pads, traps, turrets, puffers and
+snakes, but no seals or saws). Each chunk enters through a door in the row it shares with the
+chunk below. Sliding back down through that door counts as returning to the chunk's entrance,
+which is valid because the chunk below was itself verified to lead back up.
 
 ### How it's tested
 
-- `npm test`: re-checks every stage from 1 to 200, three daily tombs and 3 × 40 endless chunks
-  with an **independent** slide implementation. It confirms the exit is reachable, there are no
-  soft-locks, the saved route takes all three stars without dying, movers never cover a stop,
-  every pickup is reachable, and generation is deterministic.
-- `test/play.test.ts`: a **bot plays every stage from 1 to 200 through the real game rules**
-  (bug timing, gates, traps, the rising context window), looking ahead to wait for gaps. It must
-  win every stage with 3/3 stars. It also plays the daily tomb and three 4-minute endless runs.
+- `npm test`: re-checks stages 1-200, three daily tombs and 3 × 40 endless chunks with an
+  **independent** slide implementation (bounce pads and seals included). It checks that:
+  - every reachable (position, sealed blocks) state can still reach the exit;
+  - the saved route takes all three stars without dying, with blocks sealing behind it;
+  - movers never cover a stop, and bugs and snakes are only ever crossed;
+  - no slide crosses two hazards, and the ways out of puffer and spike-trap zones are clear;
+  - every pickup is reachable, and generation is deterministic.
+- `test/play.test.ts`: a **bot plays every stage from 1 to 200 through the real game rules** and
+  must win each one with 3/3 stars. The rules include hazard timing, spike traps, puffers, darts,
+  snakes, saws chasing it and the rising context window. Before each slide the bot looks ahead on
+  a copy of every hazard, two slides deep next to puffers. A typical run survives about 370
+  bounces, 720 seals closing, 780 spike traps firing, 2,700 dart volleys, 860 puffs, 210 snakes
+  and 80+ saw chases. It also plays the daily tomb and three 4-minute endless runs. A one-off
+  run over stages 1-400 passed too.
 - `npm run e2e`: headless Chromium plays stage 1 of the built file with real **touch swipes**,
   **mouse drags** and **arrow keys**. It checks the result screen, that progress survives a
   reload, the pause menu and `/restart`, endless and daily, and that the page logs no errors.
@@ -144,8 +178,10 @@ WebAudio, and the music is a short loop generated per world.
 
 | File | |
 |---|---|
-| `src/gen.ts` | Level generator, difficulty curve, slide-motion constants |
-| `src/sim.ts` | Game rules (no DOM): world, sliding, pickups, hazards, flood, endless chunks |
+| `src/gen.ts` | Level generator, fairness checks, difficulty curve |
+| `src/core.ts` | Shared constants: directions, bounce-pad deflection, slide motion |
+| `src/hazards.ts` | Every hazard's behaviour as a function of the hazard clock (shared by game, generator and bot) |
+| `src/sim.ts` | Game rules (no DOM): world, sliding, seals, pickups, hazards, flood, endless chunks, look-ahead |
 | `src/bot.ts` | Autopilot for the title-screen demo and the play test |
 | `src/render.ts` | Pixel renderer: cached wall bands, items, hazards, Clawd, particles, flood |
 | `src/art.ts` | Palettes, Clawd, bitmaps, 5×7 font, skins |

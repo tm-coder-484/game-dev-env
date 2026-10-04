@@ -140,6 +140,41 @@ export class Sound {
     this.tone(NOTE(-9), 0.6, 'triangle', 0.2, undefined, 0);
   }
 
+  bounce(): void {
+    this.tone(NOTE(7), 0.09, 'triangle', 0.14, NOTE(19));
+  }
+
+  seal(): void {
+    this.tone(90, 0.12, 'square', 0.12, 50);
+    this.noise(0.08, 0.2, 600, 300);
+  }
+
+  spring(): void {
+    this.noise(0.12, 0.25, 6000, 2500, 0, undefined, 3);
+    this.tone(NOTE(19), 0.06, 'square', 0.05, NOTE(24));
+  }
+
+  fire(): void {
+    this.tone(NOTE(12), 0.06, 'square', 0.03, NOTE(0));
+  }
+
+  puff(): void {
+    this.noise(0.25, 0.18, 300, 1600, 0, undefined, 1.5);
+  }
+
+  snake(): void {
+    this.noise(0.6, 0.3, 120, 400, 0, undefined, 0.6);
+  }
+
+  sawWake(): void {
+    this.tone(NOTE(-5), 0.4, 'sawtooth', 0.06, NOTE(7));
+  }
+
+  sawBreak(): void {
+    this.noise(0.3, 0.35, 3000, 400);
+    this.tone(NOTE(5), 0.2, 'square', 0.08, NOTE(-12));
+  }
+
   click(): void {
     this.tone(NOTE(12), 0.03, 'square', 0.05);
   }

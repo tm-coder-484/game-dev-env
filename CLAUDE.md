@@ -52,6 +52,8 @@ systems, debug); the old starter sandbox is `scenes/main.tscn`.
 - **Tomb of the Token:** generator or rule changes need `make tomb-test` to pass (it fails on any soft-lock, unfair hazard
   or stage the bot can't 3-star). UI/render changes: `make tomb-e2e` and `make tomb-shot`, then Read the PNGs. Tests run
   the TypeScript directly with `node --experimental-strip-types`, so keep `src/` free of enums and parameter properties.
+  Hazard behaviour lives only in `tomb/src/hazards.ts` (shared by the generator's fairness checks, the game and the bot's
+  look-ahead); slide rules (bounce pads, seals) must stay identical in `gen.ts` `trace()` and `sim.ts` `World.trace()`.
 - **Blender scripts:** run them with `blender -b --factory-startup -P <script> -- <args>`, then `make preview MODEL=<out>`.
 - **Gameplay and input in the native build:** `make export-linux`, then drive it with the desktop tools.
   Launch with `--rendering-driver opengl3 --audio-driver Dummy` (~3–5 FPS on the CPU; Vulkan/Forward+ is ~1 FPS).

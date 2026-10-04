@@ -24,71 +24,24 @@
 // door in the shared row between them.
 
 import { Rng, hash } from './rng.ts';
+import {
+  W, UP, DOWN, LEFT, DX, DY, opp, IT_DOT, IT_COIN, IT_STAR, IT_SHIELD, IT_MAGNET, IT_FREEZE,
+  PAD_SLASH, PAD_BACKSLASH, DEFLECT, SLIDE_LIMIT, moveTime, moveDist,
+} from './core.ts';
+import {
+  type Bug, type Gate, type Trap, type Turret, type Puffer, type Snake, type SawSpec,
+  newSaw, onPlayerCell, advanceSaws, emptyHazards, SNAKE_WARN, TRAP_DELAY, TRAP_OUT,
+} from './hazards.ts';
 
-export const W = 15;
-export const UP = 0;
-export const RIGHT = 1;
-export const DOWN = 2;
-export const LEFT = 3;
-export const DX: readonly number[] = [0, 1, 0, -1];
-export const DY: readonly number[] = [-1, 0, 1, 0];
-export const opp = (d: number): number => (d + 2) & 3;
-
-export const IT_NONE = 0;
-export const IT_DOT = 1;
-export const IT_COIN = 2;
-export const IT_STAR = 3;
-export const IT_SHIELD = 4;
-export const IT_MAGNET = 5;
-export const IT_FREEZE = 6;
+export * from './core.ts';
+export type { Bug, Gate, Trap, Turret, Puffer, Snake, SawSpec } from './hazards.ts';
 
 /** Slide results: >= 0 is the cell index where the slide stops. */
 export const R_NONE = -1;
 export const R_GOAL = -2;
 export const R_BACK = -3;
 export const R_DEATH = -4;
-
-/** Slide motion, shared by the game, the bot and the flood timing. Tiles and seconds. */
-export const MOVE = { v0: 12, accel: 220, vmax: 30 };
-const T_ACC = (MOVE.vmax - MOVE.v0) / MOVE.accel;
-const D_ACC = MOVE.v0 * T_ACC + 0.5 * MOVE.accel * T_ACC * T_ACC;
-
-export function moveDist(t: number): number {
-  if (t <= 0) return 0;
-  if (t < T_ACC) return MOVE.v0 * t + 0.5 * MOVE.accel * t * t;
-  return D_ACC + MOVE.vmax * (t - T_ACC);
-}
-
-export function moveTime(len: number): number {
-  if (len <= D_ACC) return (-MOVE.v0 + Math.sqrt(MOVE.v0 * MOVE.v0 + 2 * MOVE.accel * len)) / MOVE.accel;
-  return T_ACC + (len - D_ACC) / MOVE.vmax;
-}
-
-export interface Bug {
-  horiz: boolean;
-  /** Fixed row (horizontal bug) or column (vertical bug). */
-  line: number;
-  a: number;
-  b: number;
-  speed: number;
-  phase: number;
-}
-
-export interface Gate {
-  x: number;
-  y: number;
-  /** True when the corridor runs left-right (the beam is vertical). */
-  horiz: boolean;
-  period: number;
-  on: number;
-  phase: number;
-}
-
-export interface Trap {
-  x: number;
-  y: number;
-  face: number;
-}
+export const R_LOOP = -5;
 
 export interface LevelStats {
   sol: number;
@@ -115,9 +68,17 @@ export interface Level {
   entryX: number;
   startX: number;
   startY: number;
+  /** Bounce pad per cell: 0 none, 1 "/", 2 "\\". */
+  pads: Uint8Array;
+  /** Cells that turn solid once Clawd has passed over them. */
+  seals: number[];
   bugs: Bug[];
   gates: Gate[];
   traps: Trap[];
+  turrets: Turret[];
+  puffers: Puffer[];
+  snakes: Snake[];
+  saws: SawSpec[];
   /** Rows per second, 0 = no flood. */
   floodSpeed: number;
   floodDelay: number;
@@ -139,6 +100,12 @@ export interface GenParams {
   bugs: number;
   gates: number;
   traps: number;
+  turrets: number;
+  puffers: number;
+  snakes: number;
+  saws: number;
+  seals: number;
+  pads: number;
   coins: number;
   powerups: number;
   stars: boolean;
@@ -162,6 +129,9 @@ class Grid {
   spikes: Uint8Array;
   lockW: Uint8Array;
   lockF: Uint8Array;
+  pads: Uint8Array;
+  /** Seal index per cell, -1 for none. */
+  sealBit: Int8Array;
   doorX = -1;
 
   constructor(h: number, entryX: number) {
@@ -172,6 +142,8 @@ class Grid {
     this.spikes = new Uint8Array(n);
     this.lockW = new Uint8Array(n);
     this.lockF = new Uint8Array(n);
+    this.pads = new Uint8Array(n);
+    this.sealBit = new Int8Array(n).fill(-1);
     if (entryX >= 0) {
       const i = (h - 1) * this.w + entryX;
       this.cells[i] = 1;
@@ -187,56 +159,76 @@ class Grid {
     return x >= 0 && x < this.w && y >= 0 && y < this.h && this.cells[y * this.w + x] === 1;
   }
 
-  save(): [Uint8Array, Uint8Array, Uint8Array, Uint8Array, number] {
-    return [this.cells.slice(), this.spikes.slice(), this.lockW.slice(), this.lockF.slice(), this.doorX];
+  save(): [Uint8Array, Uint8Array, Uint8Array, Uint8Array, number, Uint8Array] {
+    return [this.cells.slice(), this.spikes.slice(), this.lockW.slice(), this.lockF.slice(), this.doorX, this.pads.slice()];
   }
 
-  load(s: [Uint8Array, Uint8Array, Uint8Array, Uint8Array, number]): void {
+  load(s: [Uint8Array, Uint8Array, Uint8Array, Uint8Array, number, Uint8Array]): void {
     this.cells.set(s[0]);
     this.spikes.set(s[1]);
     this.lockW.set(s[2]);
     this.lockF.set(s[3]);
     this.doorX = s[4];
+    this.pads.set(s[5]);
   }
 }
 
-/** Where a slide from (x, y) in direction d ends. */
-function slide(g: Grid, x: number, y: number, d: number): number {
+// Results of the last trace() besides its return value (kept out of the return to avoid allocations).
+let trDir = 0;
+let trBits = 0;
+
+/**
+ * Follows a slide from (x, y) in direction d through bounce pads until something
+ * solid. Seals whose bit is set in `mask` are solid. Calls fn for every cell
+ * entered, with the direction it was entered in. Returns the stop cell or R_*.
+ */
+function trace(g: Grid, x: number, y: number, d: number, mask: number, fn?: (c: number, dir: number) => void): number {
   const w = g.w;
-  const dx = DX[d];
-  const dy = DY[d];
   let cx = x;
   let cy = y;
+  let dir = d;
   let n = 0;
-  for (;;) {
-    const nx = cx + dx;
-    const ny = cy + dy;
-    if (nx < 0 || nx >= w || ny < 0 || ny >= g.h || g.cells[ny * w + nx] === 0) break;
+  let bits = 0;
+  for (let steps = 0; ; steps++) {
+    if (steps > SLIDE_LIMIT) {
+      trDir = dir;
+      trBits = bits;
+      return R_LOOP;
+    }
+    const nx = cx + DX[dir];
+    const ny = cy + DY[dir];
+    if (nx < 0 || nx >= w || ny < 0 || ny >= g.h) break;
+    const ni = ny * w + nx;
+    if (!g.cells[ni]) break;
+    const sb = g.sealBit[ni];
+    if (sb >= 0 && (mask >> sb) & 1) break;
     cx = nx;
     cy = ny;
     n++;
-    if (cy === 0) return R_GOAL;
-    if (cy === g.h - 1) return R_BACK;
+    if (fn) fn(ni, dir);
+    if (cy === 0 || cy === g.h - 1) {
+      trDir = dir;
+      trBits = bits;
+      return cy === 0 ? R_GOAL : R_BACK;
+    }
+    if (sb >= 0) bits |= 1 << sb;
+    const p = g.pads[ni];
+    if (p) dir = DEFLECT[p][dir];
   }
-  if (n === 0) return R_NONE;
-  const i = cy * w + cx;
-  return g.spikes[i] & (1 << d) ? R_DEATH : i;
+  trDir = dir;
+  trBits = bits;
+  return n === 0 ? R_NONE : cy * w + cx;
+}
+
+/** Where a slide from (x, y) in direction d ends, with spikes. */
+function slide(g: Grid, x: number, y: number, d: number): number {
+  const r = trace(g, x, y, d, 0);
+  return r >= 0 && g.spikes[r] & (1 << trDir) ? R_DEATH : r;
 }
 
 /** Calls fn for every cell a slide passes through (not the cell it starts on). */
-function walk(g: Grid, u: number, d: number, fn: (i: number) => void): void {
-  const w = g.w;
-  let cx = u % w;
-  let cy = (u / w) | 0;
-  for (;;) {
-    const nx = cx + DX[d];
-    const ny = cy + DY[d];
-    if (nx < 0 || nx >= w || ny < 0 || ny >= g.h || g.cells[ny * w + nx] === 0) return;
-    cx = nx;
-    cy = ny;
-    fn(cy * w + cx);
-    if (cy === 0 || cy === g.h - 1) return;
-  }
+function walk(g: Grid, u: number, d: number, fn: (i: number, dir: number) => void, mask = 0): void {
+  trace(g, u % g.w, (u / g.w) | 0, d, mask, fn);
 }
 
 interface Analysis {
@@ -260,12 +252,14 @@ function analyze(g: Grid, start: number): Analysis {
   const nodes = [start];
   distS[start] = 0;
   const w = g.w;
+  let loops = false;
   for (let qi = 0; qi < nodes.length; qi++) {
     const u = nodes[qi];
     const ux = u % w;
     const uy = (u / w) | 0;
     for (let d = 0; d < 4; d++) {
       const r = slide(g, ux, uy, d);
+      if (r === R_LOOP) loops = true;
       res[u * 4 + d] = r;
       const t = target(r, start);
       if (t >= 0 && distS[t] < 0) {
@@ -304,7 +298,7 @@ function analyze(g: Grid, start: number): Analysis {
       }
     }
   }
-  let ok = distG[start] > 0;
+  let ok = distG[start] > 0 && !loops;
   if (ok) for (const u of nodes) if (distG[u] < 0) { ok = false; break; }
   return { ok, start, nodes, res, distS, distG, sol: distG[start] };
 }
@@ -454,7 +448,7 @@ function sweptCells(g: Grid, an: Analysis): number[] {
     for (let d = 0; d < 4; d++) {
       const r = an.res[u * 4 + d];
       if (r === R_NONE || r === R_DEATH) continue;
-      walk(g, u, d, add);
+      walk(g, u, d, (c) => add(c));
     }
   }
   return out;
@@ -803,214 +797,722 @@ function placeItems(g: Grid, rng: Rng, P: GenParams, an: Analysis, items: Uint8A
   return { route, routeCells, par: route.length };
 }
 
-function placeMovers(
-  g: Grid,
-  rng: Rng,
-  P: GenParams,
-  an: Analysis,
-  pl: Placement,
-): { bugs: Bug[]; gates: Gate[]; traps: Trap[]; owner: Int16Array } {
-  const w = g.w;
-  const h = g.h;
-  const isNode = new Uint8Array(w * h);
-  for (const u of an.nodes) isNode[u] = 1;
-  const swept = new Uint8Array(w * h);
-  for (const c of sweptCells(g, an)) swept[c] = 1;
-  // Which axes slides travel along through each cell: bit 1 = vertical, bit 2 = horizontal.
-  const axis = new Uint8Array(w * h);
-  for (const u of an.nodes) {
-    for (let d = 0; d < 4; d++) {
-      const r = an.res[u * 4 + d];
-      if (r === R_NONE || r === R_DEATH) continue;
-      const bit = d & 1 ? 2 : 1;
-      walk(g, u, d, (c) => {
-        axis[c] |= bit;
-      });
-    }
-  }
-  const used = new Uint8Array(w * h);
-  // Every reachable slide's cells, to keep each slide to one moving hazard at most.
-  const paths: number[][] = [];
-  for (const u of an.nodes) {
-    for (let d = 0; d < 4; d++) {
-      const r = an.res[u * 4 + d];
-      if (r === R_NONE || r === R_DEATH) continue;
-      const cells: number[] = [];
-      walk(g, u, d, (c) => cells.push(c));
-      paths.push(cells);
-    }
-  }
-  const owner = new Int16Array(w * h).fill(-1);
-  let nextOwner = 0;
-  const claim = (cells: number[]): boolean => {
-    const mine = new Set(cells);
-    for (const p of paths) {
-      if (!p.some((c) => mine.has(c))) continue;
-      if (p.some((c) => owner[c] >= 0 && !mine.has(c))) return false;
-    }
-    const id = nextOwner++;
-    for (const c of cells) owner[c] = id;
-    return true;
-  };
-  const sx = an.start % w;
-  const sy = (an.start / w) | 0;
-  const nearStart = (x: number, y: number) => Math.abs(x - sx) <= 3 && Math.abs(y - sy) <= 3;
-  const free = (x: number, y: number) =>
-    g.inside(x, y) && y >= 2 && swept[y * w + x] === 1 && !isNode[y * w + x] && !nearStart(x, y);
+// --------------------------------------------------------- bounce pads ----
 
-  // Bugs patrol lanes that slides only ever cross at right angles, so getting
-  // past one is a matter of timing (a slide along a bug's lane could never dodge it).
+/** Bounce pads in open crossings. Each one is kept only if the level stays valid and the pad gets used. */
+function placePads(g: Grid, rng: Rng, an: Analysis, count: number, minSol: number): Analysis {
+  if (count <= 0) return an;
+  const w = g.w;
+  let swept = sweptCells(g, an);
+  // Never near the doors, so the shafts between endless chunks stay straight.
+  const cand = swept.filter((c) => {
+    const x = c % w;
+    const y = (c / w) | 0;
+    if (c === an.start || y < 3 || y > g.h - 4) return false;
+    return (g.floor(x - 1, y) || g.floor(x + 1, y)) && (g.floor(x, y - 1) || g.floor(x, y + 1));
+  });
+  rng.shuffle(cand);
+  let placed = 0;
+  for (const c of cand) {
+    if (placed >= count) break;
+    const x = c % w;
+    const y = (c / w) | 0;
+    let near = false;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (g.inside(x + dx, y + dy) && g.pads[(y + dy) * w + x + dx]) near = true;
+    if (near) continue;
+    for (const pad of rng.chance(0.5) ? [PAD_SLASH, PAD_BACKSLASH] : [PAD_BACKSLASH, PAD_SLASH]) {
+      g.pads[c] = pad;
+      const next = analyze(g, an.start);
+      const ns = next.ok ? sweptCells(g, next) : [];
+      if (next.ok && next.sol >= minSol && ns.length >= swept.length * 0.88 && ns.includes(c)) {
+        an = next;
+        swept = ns;
+        placed++;
+        break;
+      }
+      g.pads[c] = 0;
+    }
+  }
+  return an;
+}
+
+// ------------------------------------------------------ state space ----
+
+interface Edge {
+  /** Cell and seal mask the slide starts from. */
+  from: number;
+  mask: number;
+  cells: number[];
+  dirs: number[];
+  /** Target state (mask * cells + cell), or -1. */
+  to: number;
+  kind: number;
+}
+
+interface Explore {
+  ok: boolean;
+  sol: number;
+  /** Cells Clawd can stand on in some reachable state. */
+  nodeCells: Uint8Array;
+  swept: Uint8Array;
+  /** Axes slides travel along through each cell: bit 1 vertical, bit 2 horizontal. */
+  axis: Uint8Array;
+  edges: Edge[];
+}
+
+/**
+ * Exact reachability over (cell, sealed blocks) states. With seals the maze
+ * changes as you play, so every combination you can reach has to be able to
+ * reach the exit, not just the starting layout.
+ */
+function explore(g: Grid, start: number, seals: number[]): Explore {
+  const N = g.w * g.h;
+  g.sealBit.fill(-1);
+  seals.forEach((c, i) => (g.sealBit[c] = i));
+  const S = N << seals.length;
+  const dist = new Int32Array(S).fill(-1);
+  const order = [start];
+  dist[start] = 0;
+  const edges: Edge[] = [];
+  const fromState: number[] = [];
+  let ok = true;
+  for (let qi = 0; qi < order.length; qi++) {
+    const st = order[qi];
+    const m = Math.floor(st / N);
+    const c = st % N;
+    for (let d = 0; d < 4; d++) {
+      const cells: number[] = [];
+      const dirs: number[] = [];
+      const r = trace(g, c % g.w, (c / g.w) | 0, d, m, (ci, di) => {
+        cells.push(ci);
+        dirs.push(di);
+      });
+      if (r === R_NONE) continue;
+      if (r === R_LOOP) {
+        ok = false;
+        continue;
+      }
+      const nm = m | trBits;
+      let to = -1;
+      let kind = r;
+      if (r >= 0) {
+        if (g.spikes[r] & (1 << trDir)) kind = R_DEATH;
+        else to = nm * N + r;
+      } else if (r === R_BACK) to = nm * N + start;
+      edges.push({ from: c, mask: m, cells, dirs, to, kind });
+      fromState.push(st);
+      if (to >= 0 && dist[to] < 0) {
+        dist[to] = dist[st] + 1;
+        order.push(to);
+      }
+    }
+  }
+  // Moves to the exit, backwards from every state with a slide out of the door.
+  const goal = new Int32Array(S).fill(-1);
+  const rev = new Map<number, number[]>();
+  const queue: number[] = [];
+  edges.forEach((e, i) => {
+    const st = fromState[i];
+    if (e.kind === R_GOAL && goal[st] < 0) {
+      goal[st] = 1;
+      queue.push(st);
+    }
+    if (e.to >= 0) {
+      let l = rev.get(e.to);
+      if (!l) rev.set(e.to, (l = []));
+      l.push(st);
+    }
+  });
+  for (let qi = 0; qi < queue.length; qi++) {
+    const v = queue[qi];
+    for (const u of rev.get(v) ?? []) {
+      if (goal[u] < 0) {
+        goal[u] = goal[v] + 1;
+        queue.push(u);
+      }
+    }
+  }
+  for (const st of order) if (goal[st] < 0) ok = false;
+  const nodeCells = new Uint8Array(N);
+  for (const st of order) nodeCells[st % N] = 1;
+  const swept = new Uint8Array(N);
+  const axis = new Uint8Array(N);
+  swept[start] = 1;
+  for (const e of edges) {
+    if (e.kind === R_DEATH) continue;
+    e.cells.forEach((c, k) => {
+      swept[c] = 1;
+      axis[c] |= e.dirs[k] & 1 ? 2 : 1;
+      if (g.pads[c]) axis[c] = 3;
+    });
+  }
+  return { ok, sol: goal[start], nodeCells, swept, axis, edges };
+}
+
+/** Plays a route with sealing and checks every slide lands where it did without seals. */
+function routeWorks(g: Grid, start: number, route: number[]): boolean {
+  let c = start;
+  let m = 0;
+  for (const d of route) {
+    const x = c % g.w;
+    const y = (c / g.w) | 0;
+    const free = trace(g, x, y, d, 0);
+    const real = trace(g, x, y, d, m);
+    if (real !== free || real === R_NONE || real === R_LOOP) return false;
+    if (real >= 0 && g.spikes[real] & (1 << trDir)) return false;
+    m |= trBits;
+    if (real === R_GOAL) return true;
+    c = real === R_BACK ? start : real;
+  }
+  return false;
+}
+
+/** Seal blocks on cells the star route slides over, kept only if no combination of sealed blocks can strand you. */
+function placeSeals(g: Grid, rng: Rng, start: number, route: number[], count: number, items: Uint8Array): { seals: number[]; ex: Explore } {
+  let seals: number[] = [];
+  let ex = explore(g, start, seals);
+  if (count <= 0) return { seals, ex };
+  const w = g.w;
+  const onRoute: number[] = [];
+  let c = start;
+  for (const d of route) {
+    const r = trace(g, c % w, (c / w) | 0, d, 0, (ci) => onRoute.push(ci));
+    if (r < 0) break;
+    c = r;
+  }
+  const cand = [...new Set(onRoute)].filter((ci) => {
+    const y = (ci / w) | 0;
+    const x = ci % w;
+    if (items[ci] > IT_DOT) return false;
+    return y >= 2 && y <= g.h - 3 && !ex.nodeCells[ci] && !g.pads[ci] && Math.abs(x - (start % w)) + Math.abs(y - ((start / w) | 0)) > 3;
+  });
+  rng.shuffle(cand);
+  for (const ci of cand) {
+    if (seals.length >= count) break;
+    if (seals.some((o) => Math.abs((o % w) - (ci % w)) + Math.abs(((o / w) | 0) - ((ci / w) | 0)) < 3)) continue;
+    const trial = [...seals, ci];
+    const ex2 = explore(g, start, trial);
+    if (!ex2.ok || trial.some((o) => ex2.nodeCells[o]) || !routeWorks(g, start, route)) continue;
+    seals = trial;
+    ex = ex2;
+  }
+  ex = explore(g, start, seals);
+  return { seals, ex };
+}
+
+// ------------------------------------------------------------ hazards ----
+
+/**
+ * Places every timed hazard under the same fairness rules:
+ *  - bugs, gates, dart lines and snakes never cover a cell where Clawd can
+ *    stand, so standing still is safe from them;
+ *  - bugs and snakes patrol lanes slides only cross at right angles;
+ *  - no single slide crosses two different timed hazards (each claims cells);
+ *  - spike traps and puffers may reach stops, but every way out of such a stop
+ *    is hazard-free, so leaving straight away is always safe.
+ */
+class Placer {
+  readonly g: Grid;
+  readonly ex: Explore;
+  readonly w: number;
+  readonly owner: Int16Array;
+  readonly wait: number[] = [];
+  readonly used: Uint8Array;
+  readonly exits = new Map<number, number[][]>();
+  readonly sealSet: Set<number>;
+  readonly sx: number;
+  readonly sy: number;
+  readonly routeCells: Uint8Array;
+
+  constructor(g: Grid, ex: Explore, start: number, seals: number[], routeCells: Uint8Array) {
+    this.g = g;
+    this.ex = ex;
+    this.w = g.w;
+    this.owner = new Int16Array(g.w * g.h).fill(-1);
+    this.used = new Uint8Array(g.w * g.h);
+    this.sealSet = new Set(seals);
+    this.sx = start % g.w;
+    this.sy = (start / g.w) | 0;
+    this.routeCells = routeCells;
+    for (const e of ex.edges) {
+      if (e.kind === R_DEATH) continue;
+      let l = this.exits.get(e.from);
+      if (!l) this.exits.set(e.from, (l = []));
+      l.push(e.cells);
+    }
+  }
+
+  nearStart(x: number, y: number): boolean {
+    return Math.abs(x - this.sx) <= 3 && Math.abs(y - this.sy) <= 3;
+  }
+
+  /** A floor cell a moving hazard may cover: passable, never stood on, no pad or seal. */
+  free(x: number, y: number): boolean {
+    const g = this.g;
+    if (!g.inside(x, y) || y < 2) return false;
+    const c = y * this.w + x;
+    return this.ex.swept[c] === 1 && !this.ex.nodeCells[c] && !g.pads[c] && !this.sealSet.has(c) && !this.nearStart(x, y);
+  }
+
+  /** Claims cells for one hazard unless some slide would then cross two hazards. */
+  claim(cells: number[], wait: number, reserveExitsOf: number[] = []): boolean {
+    const mine = new Set(cells);
+    for (const c of cells) if (this.owner[c] >= 0) return false;
+    for (const e of this.ex.edges) {
+      if (e.kind === R_DEATH || !e.cells.some((c) => mine.has(c))) continue;
+      if (e.cells.some((c) => this.owner[c] >= 0 && !mine.has(c))) return false;
+    }
+    // Ways out of stops inside the danger zone must be hazard-free now and stay that way.
+    const exitCells: number[] = [];
+    for (const n of reserveExitsOf) {
+      for (const p of this.exits.get(n) ?? []) {
+        for (const c of p) {
+          if (mine.has(c)) continue;
+          if (this.owner[c] >= 0) return false;
+          exitCells.push(c);
+        }
+      }
+    }
+    const id = this.wait.length;
+    this.wait.push(wait);
+    for (const c of cells) this.owner[c] = id;
+    for (const c of exitCells) this.owner[c] = id;
+    return true;
+  }
+
+  /** Keeps other hazards off these cells (the stretch of route you flee a saw along). */
+  reserve(cells: number[]): void {
+    const id = this.wait.length;
+    this.wait.push(0);
+    for (const c of cells) if (this.owner[c] < 0) this.owner[c] = id;
+  }
+
+  routeWeight(cells: number[]): number {
+    let on = 0;
+    for (const c of cells) on += this.routeCells[c];
+    return 1 + (3 * on) / Math.max(1, cells.length);
+  }
+}
+
+function placeBugs(pl: Placer, rng: Rng, P: GenParams): Bug[] {
+  const { g, w, ex } = pl;
+  const h = g.h;
   const bugs: Bug[] = [];
-  if (P.bugs > 0) {
-    const segs: { horiz: boolean; line: number; a: number; b: number; wgt: number }[] = [];
-    for (const horiz of [true, false]) {
-      const lines = horiz ? h : w;
-      const len = horiz ? w : h;
-      const along = horiz ? 2 : 1;
-      for (let line = 1; line < lines - 1; line++) {
-        let a = -1;
-        for (let k = 0; k <= len; k++) {
-          const x = horiz ? k : line;
-          const y = horiz ? line : k;
-          const ok = k < len && free(x, y) && !(axis[y * w + x] & along);
-          if (ok && a < 0) a = k;
-          if (!ok && a >= 0) {
-            const b = k - 1;
-            if (b - a >= 2) {
-              let onRoute = 0;
-              for (let j = a; j <= b; j++) onRoute += pl.routeCells[horiz ? line * w + j : j * w + line];
-              segs.push({ horiz, line, a, b, wgt: (b - a + 1) * (1 + (2 * onRoute) / (b - a + 1)) });
-            }
-            a = -1;
+  if (P.bugs <= 0) return bugs;
+  const segs: { horiz: boolean; line: number; a: number; b: number; wgt: number }[] = [];
+  for (const horiz of [true, false]) {
+    const lines = horiz ? h : w;
+    const len = horiz ? w : h;
+    const along = horiz ? 2 : 1;
+    for (let line = 1; line < lines - 1; line++) {
+      let a = -1;
+      for (let k = 0; k <= len; k++) {
+        const x = horiz ? k : line;
+        const y = horiz ? line : k;
+        const ok = k < len && pl.free(x, y) && !(ex.axis[y * w + x] & along) && pl.owner[y * w + x] < 0;
+        if (ok && a < 0) a = k;
+        if (!ok && a >= 0) {
+          const b = k - 1;
+          if (b - a >= 2) {
+            const cells: number[] = [];
+            for (let j = a; j <= b; j++) cells.push(horiz ? line * w + j : j * w + line);
+            segs.push({ horiz, line, a, b, wgt: (b - a + 1) * pl.routeWeight(cells) });
+          }
+          a = -1;
+        }
+      }
+    }
+  }
+  for (const s of segs) s.wgt *= 0.4 + rng.next();
+  segs.sort((p, q) => q.wgt - p.wgt);
+  for (const s of segs) {
+    if (bugs.length >= P.bugs) break;
+    const lane: number[] = [];
+    for (let j = s.a; j <= s.b; j++) lane.push(s.horiz ? s.line * w + j : j * w + s.line);
+    if (lane.some((c) => pl.used[c])) continue;
+    const speed = 2 + 2.2 * P.diff + rng.range(-0.3, 0.4);
+    if (!pl.claim(lane, (2 * (s.b - s.a)) / speed / 2 + 0.3)) continue;
+    for (let j = s.a - 1; j <= s.b + 1; j++) {
+      for (let o = -1; o <= 1; o++) {
+        const x = s.horiz ? j : s.line + o;
+        const y = s.horiz ? s.line + o : j;
+        if (x >= 0 && x < w && y >= 0 && y < h) pl.used[y * w + x] = 1;
+      }
+    }
+    bugs.push({ horiz: s.horiz, line: s.line, a: s.a, b: s.b, speed, phase: rng.next() });
+  }
+  return bugs;
+}
+
+function placeGates(pl: Placer, rng: Rng, P: GenParams): Gate[] {
+  const { g, w } = pl;
+  const gates: Gate[] = [];
+  if (P.gates <= 0) return gates;
+  const cand: number[] = [];
+  const cw: number[] = [];
+  for (let y = 2; y < g.h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const c = y * w + x;
+      if (!pl.free(x, y) || pl.used[c] || pl.owner[c] >= 0) continue;
+      const horiz = !g.floor(x, y - 1) && !g.floor(x, y + 1) && (g.floor(x - 1, y) || g.floor(x + 1, y));
+      const vert = !g.floor(x - 1, y) && !g.floor(x + 1, y) && (g.floor(x, y - 1) || g.floor(x, y + 1));
+      if (!horiz && !vert) continue;
+      cand.push(c);
+      cw.push(pl.routeCells[c] ? 3 : 1);
+    }
+  }
+  while (gates.length < P.gates && cand.length) {
+    const k = rng.weighted(cw, cw.length);
+    const c = cand[k];
+    cand.splice(k, 1);
+    cw.splice(k, 1);
+    const period = rng.range(1.5, 2.3) - P.diff * 0.2;
+    const on = rng.range(0.38, 0.48);
+    if (pl.used[c] || !pl.claim([c], period * on + 0.2)) continue;
+    const x = c % w;
+    const y = (c / w) | 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (g.inside(x + dx, y + dy)) pl.used[(y + dy) * w + x + dx] = 1;
+    gates.push({ x, y, horiz: !g.floor(x, y - 1) && !g.floor(x, y + 1), period, on, phase: rng.next() });
+  }
+  return gates;
+}
+
+/** Fish cannons: wall blocks that shoot darts across corridors you slide through. */
+function placeTurrets(pl: Placer, rng: Rng, P: GenParams): Turret[] {
+  const { g, w } = pl;
+  const out: Turret[] = [];
+  if (P.turrets <= 0) return out;
+  const cand: { x: number; y: number; dir: number; cells: number[]; wgt: number }[] = [];
+  for (let y = 2; y < g.h - 2; y++) {
+    for (let x = 0; x < w; x++) {
+      if (g.floor(x, y)) continue;
+      for (let d = 0; d < 4; d++) {
+        const cells: number[] = [];
+        let cx = x + DX[d];
+        let cy = y + DY[d];
+        let ok = true;
+        while (g.floor(cx, cy)) {
+          if (!pl.free(cx, cy) || pl.owner[cy * w + cx] >= 0) ok = false;
+          cells.push(cy * w + cx);
+          cx += DX[d];
+          cy += DY[d];
+        }
+        if (!ok || !cells.length || cells.length > 8 || cy <= 0) continue;
+        cand.push({ x, y, dir: d, cells, wgt: pl.routeWeight(cells) * (0.4 + rng.next()) });
+      }
+    }
+  }
+  cand.sort((a, b) => b.wgt - a.wgt);
+  for (const c of cand) {
+    if (out.length >= P.turrets) break;
+    if (c.cells.some((ci) => pl.used[ci]) || pl.used[c.y * w + c.x]) continue;
+    const period = rng.range(1.1, 1.6) - 0.15 * P.diff;
+    if (!pl.claim(c.cells, period * 0.6)) continue;
+    for (const ci of [...c.cells, c.y * w + c.x]) pl.used[ci] = 1;
+    out.push({ x: c.x, y: c.y, dir: c.dir, len: c.cells.length, period, phase: rng.next(), speed: 7 + 3 * P.diff });
+  }
+  return out;
+}
+
+/** Puffers: wall blocks that balloon over the 3x3 around them. */
+function placePuffers(pl: Placer, rng: Rng, P: GenParams): Puffer[] {
+  const { g, w, ex } = pl;
+  const out: Puffer[] = [];
+  if (P.puffers <= 0) return out;
+  const cand: { x: number; y: number; zone: number[]; nodes: number[]; wgt: number }[] = [];
+  for (let y = 2; y < g.h - 2; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      if (g.floor(x, y) || pl.used[y * w + x]) continue;
+      const zone: number[] = [];
+      const nodes: number[] = [];
+      let bad = false;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const zx = x + dx;
+          const zy = y + dy;
+          if (!g.floor(zx, zy)) continue;
+          const c = zy * w + zx;
+          if (pl.nearStart(zx, zy) || zy < 2 || g.pads[c] || pl.sealSet.has(c) || pl.used[c]) bad = true;
+          if (ex.swept[c]) zone.push(c);
+          if (ex.nodeCells[c]) nodes.push(c);
+        }
+      }
+      if (bad || zone.length < 2) continue;
+      cand.push({ x, y, zone, nodes, wgt: pl.routeWeight(zone) * (0.4 + rng.next()) });
+    }
+  }
+  cand.sort((a, b) => b.wgt - a.wgt);
+  for (const c of cand) {
+    if (out.length >= P.puffers) break;
+    if (c.zone.some((ci) => pl.used[ci])) continue;
+    const period = rng.range(2.6, 3.4);
+    const on = rng.range(0.9, 1.2) / period;
+    if (!pl.claim(c.zone, period * on + 0.3, c.nodes)) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (g.inside(c.x + dx, c.y + dy)) pl.used[(c.y + dy) * w + c.x + dx] = 1;
+    out.push({ x: c.x, y: c.y, period, on, phase: rng.next() });
+  }
+  return out;
+}
+
+/** Spike-trap blocks: wall cells whose faces fire spikes half a second after you move next to them. */
+function placeTraps(pl: Placer, rng: Rng, P: GenParams): Trap[] {
+  const { g, w, ex } = pl;
+  const out: Trap[] = [];
+  if (P.traps <= 0) return out;
+  const cand: { x: number; y: number; zone: number[]; nodes: number[]; wgt: number }[] = [];
+  for (let y = 2; y < g.h - 2; y++) {
+    for (let x = 0; x < w; x++) {
+      if (g.floor(x, y) || pl.used[y * w + x]) continue;
+      const zone: number[] = [];
+      const nodes: number[] = [];
+      let bad = false;
+      for (let d = 0; d < 4; d++) {
+        const zx = x + DX[d];
+        const zy = y + DY[d];
+        if (!g.floor(zx, zy)) continue;
+        const c = zy * w + zx;
+        if (pl.nearStart(zx, zy) || zy < 2 || pl.used[c] || g.spikes[c] & (1 << opp(d)) || pl.sealSet.has(c)) bad = true;
+        zone.push(c);
+        if (ex.nodeCells[c]) nodes.push(c);
+      }
+      if (bad || !zone.some((c) => ex.swept[c])) continue;
+      cand.push({ x, y, zone, nodes, wgt: pl.routeWeight(zone) * (0.4 + rng.next()) * (nodes.length ? 1.5 : 1) });
+    }
+  }
+  cand.sort((a, b) => b.wgt - a.wgt);
+  for (const c of cand) {
+    if (out.length >= P.traps) break;
+    if (c.zone.some((ci) => pl.used[ci])) continue;
+    if (!pl.claim(c.zone, TRAP_DELAY + TRAP_OUT + 0.2, c.nodes)) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (g.inside(c.x + dx, c.y + dy)) pl.used[(c.y + dy) * w + c.x + dx] = 1;
+    out.push({ x: c.x, y: c.y });
+  }
+  return out;
+}
+
+/** Snakes burst out of one wall and cross corridors (only at right angles to how you slide them). */
+function placeSnakes(pl: Placer, rng: Rng, P: GenParams): Snake[] {
+  const { g, w, ex } = pl;
+  const out: Snake[] = [];
+  if (P.snakes <= 0) return out;
+  const cand: { horiz: boolean; line: number; a: number; b: number; floor: number[]; wgt: number }[] = [];
+  for (const horiz of [true, false]) {
+    const lines = horiz ? g.h : w;
+    const len = horiz ? w : g.h;
+    const along = horiz ? 2 : 1;
+    for (let line = horiz ? 3 : 1; line < lines - (horiz ? 3 : 1); line++) {
+      const at = (k: number) => (horiz ? line * w + k : k * w + line);
+      const lo = horiz ? 0 : 3;
+      const hi = horiz ? len - 1 : len - 4;
+      for (let a = lo; a <= hi; a++) {
+        if (g.cells[at(a)]) continue;
+        const floor: number[] = [];
+        for (let b = a + 1; b <= Math.min(hi, a + 12); b++) {
+          const c = at(b);
+          if (g.cells[c]) {
+            const x = c % w;
+            const y = (c / w) | 0;
+            if (!pl.free(x, y) || ex.axis[c] & along || pl.owner[c] >= 0 || pl.used[c]) break;
+            floor.push(c);
+            continue;
+          }
+          // b is a wall: a complete burst from wall a to wall b.
+          if (floor.length >= 2 && b - a >= 4) {
+            let corridors = 0;
+            for (let k = a + 1; k <= b; k++) if (g.cells[at(k)] && !g.cells[at(k - 1)]) corridors++;
+            if (corridors >= 2) cand.push({ horiz, line, a, b, floor: floor.slice(), wgt: corridors * pl.routeWeight(floor) * (0.4 + rng.next()) });
           }
         }
       }
     }
-    for (const s of segs) s.wgt *= 0.4 + rng.next();
-    segs.sort((p, q) => q.wgt - p.wgt);
-    for (const s of segs) {
-      if (bugs.length >= P.bugs) break;
-      let clash = false;
-      for (let j = s.a; j <= s.b && !clash; j++) {
-        const c = s.horiz ? s.line * w + j : j * w + s.line;
-        if (used[c]) clash = true;
+  }
+  cand.sort((p, q) => q.wgt - p.wgt);
+  for (const c of cand) {
+    if (out.length >= P.snakes) break;
+    if (c.floor.some((ci) => pl.used[ci])) continue;
+    const speed = 5 + 2 * P.diff;
+    const body = 3;
+    const travel = (c.b - c.a + body) / speed;
+    if (!pl.claim(c.floor, SNAKE_WARN + travel)) continue;
+    for (const ci of c.floor) pl.used[ci] = 1;
+    const fwd = rng.chance(0.5);
+    out.push({
+      horiz: c.horiz,
+      line: c.line,
+      a: fwd ? c.a : c.b,
+      b: fwd ? c.b : c.a,
+      body,
+      speed,
+      period: SNAKE_WARN + travel + rng.range(2.4, 3.6),
+      phase: rng.next(),
+    });
+  }
+  return out;
+}
+
+interface Timeline {
+  /** Per route move: time it starts, cells entered with times. */
+  moves: { t0: number; cells: number[]; times: number[] }[];
+  end: number;
+}
+
+/** The star route played at a careful human pace (pause before each slide), with sealing. */
+function routeTimeline(g: Grid, start: number, route: number[], pause: number, waitFor: (cells: number[]) => number): Timeline {
+  const moves: Timeline['moves'] = [];
+  let t = 0;
+  let c = start;
+  let m = 0;
+  for (const d of route) {
+    const cells: number[] = [];
+    const r = trace(g, c % g.w, (c / g.w) | 0, d, m, (ci) => cells.push(ci));
+    t += pause + waitFor(cells);
+    const times = cells.map((_, k) => t + moveTime(k + 0.5));
+    moves.push({ t0: t, cells, times });
+    t += moveTime(cells.length);
+    m |= trBits;
+    if (r === R_GOAL || r < 0) break;
+    c = r;
+  }
+  return { moves, end: t };
+}
+
+/**
+ * Saws: dormant in a wall until Clawd crosses their line of sight, then they
+ * copy his path. A saw is kept only if the star route, played at a careful pace
+ * without waiting for anything, stays ahead of it until it crashes into a seal
+ * block or gives up.
+ */
+function placeSaws(pl: Placer, rng: Rng, P: GenParams, start: number, route: number[], seals: number[]): SawSpec[] {
+  const { g, w, ex } = pl;
+  const out: SawSpec[] = [];
+  if (P.saws <= 0) return out;
+  const cand: SawSpec[] = [];
+  for (let y = 3; y < g.h - 3; y++) {
+    for (let x = 0; x < w; x++) {
+      if (g.floor(x, y)) continue;
+      for (let d = 0; d < 4; d++) {
+        const ex2 = x + DX[d];
+        const ey = y + DY[d];
+        const c = ey * w + ex2;
+        if (!g.floor(ex2, ey) || !ex.swept[c] || pl.nearStart(ex2, ey) || g.pads[c] || pl.sealSet.has(c)) continue;
+        cand.push({ hx: x, hy: y, ex: ex2, ey });
       }
-      if (clash) continue;
-      const lane: number[] = [];
-      for (let j = s.a; j <= s.b; j++) lane.push(s.horiz ? s.line * w + j : j * w + s.line);
-      if (!claim(lane)) continue;
-      for (let j = s.a - 1; j <= s.b + 1; j++) {
-        for (let o = -1; o <= 1; o++) {
-          const x = s.horiz ? j : s.line + o;
-          const y = s.horiz ? s.line + o : j;
-          if (x >= 0 && x < w && y >= 0 && y < h) used[y * w + x] = 1;
+    }
+  }
+  rng.shuffle(cand);
+  const tl = routeTimeline(g, start, route, 0.45, () => 0);
+  const sealOf = new Map(seals.map((c, i) => [c, i]));
+  // Like the original's levels: a saw should wake a few slides before a seal block
+  // the route crosses, so leading it over the seal is the way to break it.
+  const moveOf = new Map<number, number>();
+  tl.moves.forEach((mv, i) => mv.cells.forEach((c) => moveOf.has(c) || moveOf.set(c, i)));
+  const sealMoves = seals.map((c) => moveOf.get(c) ?? -99);
+  const rank = (sp: SawSpec): number => {
+    const i = moveOf.get(sp.ey * w + sp.ex);
+    if (i === undefined) return 0;
+    return sealMoves.some((j) => j > i && j <= i + 4) ? 2 : 1;
+  };
+  cand.sort((a, b) => rank(b) - rank(a));
+  let tries = 0;
+  for (const spec of cand) {
+    if (out.length >= P.saws || tries++ > 140) break;
+    if (out.some((o) => Math.abs(o.hx - spec.hx) + Math.abs(o.hy - spec.hy) < 6)) continue;
+    if (pl.used[spec.hy * w + spec.hx]) continue;
+    const chase: number[] = [];
+    const verdict = sawFair(g, start, tl, spec, sealOf, pl.owner, chase);
+    if (verdict !== 'broken' && !(verdict === 'timeout' && rng.chance(0.35))) continue;
+    out.push(spec);
+    pl.used[spec.hy * w + spec.hx] = 1;
+    // Nothing that makes you wait may sit where you run from the saw.
+    pl.reserve(chase);
+  }
+  return out;
+}
+
+/** Plays the route timeline against one saw; also reports which route moves happen during the chase. */
+function sawFair(g: Grid, start: number, tl: Timeline, spec: SawSpec, sealOf: Map<number, number>, owner: Int16Array, chase: number[]): string {
+  const w = g.w;
+  const H = emptyHazards();
+  const saw = newSaw(spec);
+  H.saws.push(saw);
+  let sealed = 0;
+  const open = (x: number, y: number): boolean => {
+    if (!g.floor(x, y)) return false;
+    const b = sealOf.get(y * w + x);
+    return b === undefined || !((sealed >> b) & 1);
+  };
+  const pending: number[] = [];
+  let px = start % w;
+  let py = (start / w) | 0;
+  let t = 0;
+  const dt = 1 / 60;
+  const stepTo = (until: number, pos: (t: number) => [number, number] | null): boolean => {
+    while (t < until) {
+      t = Math.min(until, t + dt);
+      const p = pos(t);
+      if (p) [px, py] = p;
+      for (let i = pending.length - 1; i >= 0; i--) {
+        const c = pending[i];
+        if (Math.abs((c % w) - px) + Math.abs(((c / w) | 0) - py) >= 1) {
+          sealed |= 1 << (sealOf.get(c) ?? 0);
+          pending.splice(i, 1);
         }
       }
-      bugs.push({
-        horiz: s.horiz,
-        line: s.line,
-        a: s.a,
-        b: s.b,
-        speed: 2 + 2.2 * P.diff + rng.range(-0.3, 0.4),
-        phase: rng.next(),
-      });
+      advanceSaws(H, t, dt, open);
+      // The real hit box is 0.6 per axis; keep a wide margin.
+      if (saw.mode === 1 && Math.max(Math.abs(saw.x - px), Math.abs(saw.y - py)) < 1.15) return false;
     }
-  }
-
-  // Laser gates across one-wide corridors.
-  const gates: Gate[] = [];
-  if (P.gates > 0) {
-    const cand: number[] = [];
-    const cw: number[] = [];
-    for (let y = 2; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        const c = y * w + x;
-        if (!free(x, y) || used[c]) continue;
-        const horiz = !g.floor(x, y - 1) && !g.floor(x, y + 1) && (g.floor(x - 1, y) || g.floor(x + 1, y));
-        const vert = !g.floor(x - 1, y) && !g.floor(x + 1, y) && (g.floor(x, y - 1) || g.floor(x, y + 1));
-        if (!horiz && !vert) continue;
-        cand.push(c);
-        cw.push(pl.routeCells[c] ? 3 : 1);
+    return true;
+  };
+  for (const mv of tl.moves) {
+    if (!stepTo(mv.t0, () => null)) return 'caught';
+    if (saw.mode === 1 && mv.cells.some((c) => owner[c] >= 0)) return 'caught';
+    // While a saw chases, the way on must not cross the trail it is following.
+    if (saw.mode === 1 && mv.cells.some((c) => chase.includes(c))) return 'crossing';
+    if (saw.mode === 1) chase.push(...mv.cells);
+    const fx = px;
+    const fy = py;
+    let k = 0;
+    const path = mv.cells;
+    const ok = stepTo(mv.t0 + moveTime(path.length), (tt) => {
+      const dist = Math.min(path.length, moveDist(tt - mv.t0));
+      while (k < path.length && dist >= k + 0.5) {
+        const c = path[k];
+        onPlayerCell(H, c % w, (c / w) | 0, tt, open);
+        if (sealOf.has(c)) pending.push(c);
+        k++;
       }
-    }
-    while (gates.length < P.gates && cand.length) {
-      const k = rng.weighted(cw, cw.length);
-      const c = cand[k];
-      cand.splice(k, 1);
-      cw.splice(k, 1);
-      if (used[c] || !claim([c])) continue;
-      const x = c % w;
-      const y = (c / w) | 0;
-      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (g.inside(x + dx, y + dy)) used[(y + dy) * w + x + dx] = 1;
-      gates.push({
-        x,
-        y,
-        horiz: !g.floor(x, y - 1) && !g.floor(x, y + 1),
-        period: rng.range(1.5, 2.3) - P.diff * 0.2,
-        on: rng.range(0.38, 0.48),
-        phase: rng.next(),
-      });
-    }
-  }
-
-  // Pop-out spike traps on stops whose every exit is free of movers, so leaving at once is always safe.
-  const traps: Trap[] = [];
-  if (P.traps > 0) {
-    const cand = an.nodes.filter((u) => {
-      const y = (u / w) | 0;
-      if (u === an.start || y <= 1 || nearStart(u % w, y)) return false;
-      for (let d = 0; d < 4; d++) {
-        const r = an.res[u * 4 + d];
-        if (r === R_NONE || r === R_DEATH) continue;
-        let bad = false;
-        walk(g, u, d, (c) => {
-          if (used[c]) bad = true;
-        });
-        if (bad) return false;
-      }
-      return true;
+      const i = Math.floor(dist);
+      const f = dist - i;
+      const a = i === 0 ? [fx, fy] : [path[i - 1] % w, (path[i - 1] / w) | 0];
+      const b = i < path.length ? [path[i] % w, (path[i] / w) | 0] : a;
+      return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
     });
-    const cw = cand.map((u) => (pl.routeCells[u] ? 3 : 1));
-    while (traps.length < P.traps && cand.length) {
-      const k = rng.weighted(cw, cw.length);
-      const u = cand[k];
-      cand.splice(k, 1);
-      cw.splice(k, 1);
-      const x = u % w;
-      const y = (u / w) | 0;
-      if (traps.some((t) => Math.abs(t.x - x) + Math.abs(t.y - y) < 3)) continue;
-      const faces = [0, 1, 2, 3].filter((d) => !g.floor(x + DX[d], y + DY[d]) && !(g.spikes[u] & (1 << d)));
-      if (!faces.length) continue;
-      traps.push({ x, y, face: rng.pick(faces) });
-    }
+    if (!ok) return 'caught';
   }
-  return { bugs, gates, traps, owner };
+  if (saw.mode === 0) return 'asleep';
+  if (saw.mode === 1) {
+    // Still chasing when the route ends: it would be right behind you at the door.
+    return 'caught';
+  }
+  return saw.endAt - saw.wokeAt < 11.5 ? 'broken' : 'timeout';
 }
 
 /** Rows per second at which the flood still leaves the par route comfortable. */
-function floodFor(g: Grid, an: Analysis, route: number[], diff: number, delay: number, owner: Int16Array): number {
+function floodFor(g: Grid, start: number, route: number[], diff: number, delay: number, owner: Int16Array, wait: number[]): number {
   const w = g.w;
-  let t = 0;
-  let u = an.start;
+  const tl = routeTimeline(g, start, route, 0.55, (cells) => {
+    let most = 0;
+    for (const c of cells) if (owner[c] >= 0) most = Math.max(most, wait[owner[c]]);
+    return most;
+  });
   let worst = Infinity;
-  const pause = 0.55;
-  for (const d of route) {
-    t += pause;
-    let len = 0;
-    let maxY = (u / w) | 0;
-    let wait = 0;
-    walk(g, u, d, (c) => {
-      len++;
-      maxY = Math.max(maxY, (c / w) | 0);
-      if (owner[c] >= 0) wait = 1.6;
-    });
-    t += wait;
-    t += moveTime(len);
+  for (const mv of tl.moves) {
+    let maxY = 0;
+    for (const c of mv.cells) maxY = Math.max(maxY, (c / w) | 0);
+    const t = mv.t0 + moveTime(mv.cells.length);
     // The flood surface starts at the bottom edge (y = h) and must stay 2.5 rows below the player.
     if (t > delay) worst = Math.min(worst, (g.h - maxY - 2.5) / (t - delay));
-    const r = an.res[u * 4 + d];
-    if (r === R_GOAL) break;
-    u = target(r, an.start);
   }
   if (!isFinite(worst) || worst <= 0) return 0.3;
   const slack = 0.62 + 0.18 * diff;
@@ -1079,6 +1581,7 @@ export function generate(P: GenParams): Level {
   const { g } = best;
   let { an } = best;
   const rng = new Rng(hash(P.seed, 'decor'));
+  an = placePads(g, rng, an, P.pads, Math.max(3, Math.floor(an.sol * 0.8)));
   an = placeSpikes(g, rng, an, P.spikes, Math.max(3, Math.floor(an.sol * 0.85)));
   // Floor that no slide can enter becomes wall again: it changes no reachable slide.
   const passable = new Uint8Array(g.w * g.h);
@@ -1087,11 +1590,23 @@ export function generate(P: GenParams): Level {
   for (const u of an.nodes) for (let d = 0; d < 4; d++) if (an.res[u * 4 + d] === R_DEATH) walk(g, u, d, (c) => (passable[c] = 1));
   if (P.entryX >= 0) passable[(g.h - 1) * g.w + P.entryX] = 1;
   for (let c = 0; c < g.cells.length; c++) if (g.cells[c] && !passable[c]) g.cells[c] = 0;
+  for (let c = 0; c < g.cells.length; c++) if (!g.cells[c]) g.pads[c] = 0;
   const items = new Uint8Array(g.w * g.h);
   const pl = placeItems(g, rng, P, an, items);
-  const movers = placeMovers(g, rng, P, an, pl);
+  const { seals, ex } = placeSeals(g, rng, an.start, pl.route, P.seals, items);
+  // A seal can wall off a few cells that were only reachable by coming back through it.
+  for (let c = 0; c < items.length; c++) if (items[c] && items[c] !== IT_STAR && !ex.swept[c]) items[c] = 0;
+  const placer = new Placer(g, ex, an.start, seals, pl.routeCells);
+  // Saws first (their escape route must stay clear), then the rarer, more dramatic hazards.
+  const saws = placeSaws(placer, rng, P, an.start, pl.route, seals);
+  const snakes = placeSnakes(placer, rng, P);
+  const bugs = placeBugs(placer, rng, P);
+  const puffers = placePuffers(placer, rng, P);
+  const traps = placeTraps(placer, rng, P);
+  const turrets = placeTurrets(placer, rng, P);
+  const gates = placeGates(placer, rng, P);
   const floodDelay = 2.5;
-  const floodSpeed = P.flood ? floodFor(g, an, pl.route, P.diff, floodDelay, movers.owner) : 0;
+  const floodSpeed = P.flood ? floodFor(g, an.start, pl.route, P.diff, floodDelay, placer.owner, placer.wait) : 0;
   let dots = 0;
   for (const it of items) if (it === IT_DOT) dots++;
   const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -1101,13 +1616,19 @@ export function generate(P: GenParams): Level {
     cells: g.cells,
     items,
     spikes: g.spikes,
+    pads: g.pads,
+    seals,
     doorX: g.doorX,
     entryX: P.entryX,
     startX: an.start % g.w,
     startY: (an.start / g.w) | 0,
-    bugs: movers.bugs,
-    gates: movers.gates,
-    traps: movers.traps,
+    bugs,
+    gates,
+    traps,
+    turrets,
+    puffers,
+    snakes,
+    saws,
     floodSpeed,
     floodDelay,
     route: pl.route,
@@ -1129,24 +1650,50 @@ export function generate(P: GenParams): Level {
 
 // ------------------------------------------------------- difficulty ----
 
-/** Stage n (1-based). Mechanics are introduced one at a time over the first ten stages. */
+/** Stage where each mechanic first appears (one new thing every stage or two, like the original). */
+export const INTRO = {
+  spikes: 2,
+  powerups: 3,
+  bugs: 4,
+  flood: 5,
+  traps: 6,
+  gates: 7,
+  seals: 8,
+  pads: 10,
+  turrets: 12,
+  puffers: 14,
+  saws: 17,
+  snakes: 18,
+} as const;
+
+/** Stage n (1-based). After its introduction each hazard shows up in most stages, not all. */
 export function stageParams(n: number): GenParams {
   const s = Math.max(1, Math.floor(n));
   const t = Math.min(1, (s - 1) / 59);
   const rows = Math.round(Math.min(22 + s * 1.15, 92) + (s > 60 ? Math.min(26, (s - 60) * 0.4) : 0));
+  const mix = new Rng(hash('tomb-of-the-token/mix', s));
+  // On its own stage a mechanic is guaranteed; afterwards it appears with probability p.
+  const pick = (key: keyof typeof INTRO, p: number, count: number) =>
+    s < INTRO[key] ? 0 : s === INTRO[key] ? Math.max(1, count) : mix.chance(p) ? count : 0;
   return {
     seed: hash('tomb-of-the-token/stage', s),
     rows,
     entryX: -1,
     diff: t,
     spikes: s < 2 ? 0 : Math.round(1 + rows * (0.03 + 0.07 * t)),
-    bugs: s < 4 ? 0 : Math.round(1 + rows * (0.012 + 0.035 * t)),
-    gates: s < 7 ? 0 : Math.round(1 + rows * (0.008 + 0.025 * t)),
-    traps: s < 10 ? 0 : Math.round(1 + rows * (0.01 + 0.03 * t)),
+    bugs: pick('bugs', 0.7, Math.round(1 + rows * (0.01 + 0.03 * t))),
+    gates: pick('gates', 0.6, Math.round(1 + rows * (0.006 + 0.02 * t))),
+    traps: pick('traps', 0.7, Math.round(1 + rows * (0.012 + 0.03 * t))),
+    turrets: pick('turrets', 0.6, Math.round(1 + rows * (0.008 + 0.025 * t))),
+    puffers: pick('puffers', 0.55, Math.round(1 + rows * (0.006 + 0.02 * t))),
+    snakes: pick('snakes', 0.45, Math.round(rows * (0.012 + 0.015 * t))),
+    saws: pick('saws', 0.5, 1 + Math.round(rows * 0.012 * t)),
+    seals: s >= INTRO.saws ? 2 + Math.round(2 * t) : pick('seals', 0.6, 2 + Math.round(2 * t)),
+    pads: pick('pads', 0.55, Math.round(1 + rows * (0.02 + 0.03 * t))),
     coins: 3 + Math.round(rows / 10),
-    powerups: s < 3 ? 0 : s < 15 ? 1 : 2,
+    powerups: s < INTRO.powerups ? 0 : s < 15 ? 1 : 2,
     stars: true,
-    flood: s === 5 || (s > 5 && s % 3 !== 1),
+    flood: s === INTRO.flood || (s > INTRO.flood && s % 3 !== 1),
     growth: Math.round(rows * (4 + 2 * t)),
     candidates: rows < 50 ? 6 : 4,
     down: 0.04 + 0.12 * t,
@@ -1156,19 +1703,27 @@ export function stageParams(n: number): GenParams {
 
 export const CHUNK_ROWS = 24;
 
-/** Endless mode chunk k (0 = bottom). */
+/** Endless mode chunk k (0 = bottom). Seals and saws are stage-only. */
 export function chunkParams(k: number, entryX: number, runSeed: number): GenParams {
   const t = Math.min(1, k / 30);
   const rows = CHUNK_ROWS;
+  const mix = new Rng(hash('tomb-of-the-token/endless-mix', runSeed, k));
+  const maybe = (from: number, p: number, count: number) => (k >= from && mix.chance(p) ? count : 0);
   return {
     seed: hash('tomb-of-the-token/endless', runSeed, k),
     rows,
     entryX: k === 0 ? -1 : entryX,
     diff: t,
     spikes: k === 0 ? 0 : Math.round(1 + rows * (0.03 + 0.06 * t)),
-    bugs: k < 2 ? 0 : Math.round(rows * (0.02 + 0.04 * t)),
-    gates: k < 4 ? 0 : Math.round(rows * (0.01 + 0.03 * t)),
-    traps: k < 6 ? 0 : Math.round(rows * (0.01 + 0.03 * t)),
+    bugs: maybe(2, 0.7, Math.round(rows * (0.02 + 0.04 * t))),
+    gates: maybe(4, 0.5, Math.round(rows * (0.01 + 0.03 * t))),
+    traps: maybe(3, 0.6, Math.round(1 + rows * 0.03 * t)),
+    turrets: maybe(5, 0.5, 1 + Math.round(rows * 0.03 * t)),
+    puffers: maybe(6, 0.45, 1 + Math.round(rows * 0.02 * t)),
+    snakes: maybe(8, 0.35, 1),
+    saws: 0,
+    seals: 0,
+    pads: maybe(3, 0.5, 1 + Math.round(2 * t)),
     coins: 3,
     powerups: k > 0 && k % 2 === 0 ? 1 : 0,
     stars: false,
@@ -1183,6 +1738,7 @@ export function chunkParams(k: number, entryX: number, runSeed: number): GenPara
 /** One long tomb per calendar day, the same for everyone. */
 export function dailyParams(dateKey: string): GenParams {
   const p = stageParams(30);
+  const mix = new Rng(hash('tomb-of-the-token/daily-mix', dateKey));
   return {
     ...p,
     seed: hash('tomb-of-the-token/daily', dateKey),
@@ -1190,6 +1746,15 @@ export function dailyParams(dateKey: string): GenParams {
     flood: true,
     diff: 0.55,
     candidates: 6,
+    bugs: 2,
+    gates: mix.int(0, 2),
+    traps: mix.int(1, 3),
+    turrets: mix.int(1, 2),
+    puffers: mix.int(0, 2),
+    snakes: mix.int(0, 1),
+    saws: mix.int(0, 1),
+    seals: 3,
+    pads: mix.int(1, 3),
   };
 }
 
@@ -1197,21 +1762,27 @@ export function dailyParams(dateKey: string): GenParams {
 export function toAscii(L: Level): string {
   const out: string[] = [];
   const ch = ['', '.', 'c', '*', 'S', 'M', 'F'];
-  const bugCells = new Set<number>();
-  for (const b of L.bugs) for (let j = b.a; j <= b.b; j++) bugCells.add(b.horiz ? b.line * L.w + j : j * L.w + b.line);
+  const mark = new Map<number, string>();
+  for (const b of L.bugs) for (let j = b.a; j <= b.b; j++) mark.set(b.horiz ? b.line * L.w + j : j * L.w + b.line, 'b');
+  for (const g of L.gates) mark.set(g.y * L.w + g.x, '|');
+  for (const c of L.seals) mark.set(c, 'o');
+  for (const t of L.traps) mark.set(t.y * L.w + t.x, 'T');
+  for (const p of L.puffers) mark.set(p.y * L.w + p.x, 'P');
+  for (const t of L.turrets) mark.set(t.y * L.w + t.x, '>^<v'[[1, 0, 3, 2].indexOf(t.dir)] ?? 'G');
+  for (const s of L.saws) mark.set(s.hy * L.w + s.hx, 'X');
   for (let y = 0; y < L.h; y++) {
     let row = '';
     for (let x = 0; x < L.w; x++) {
       const i = y * L.w + x;
+      const m = mark.get(i);
       if (!L.cells[i]) {
-        row += '#';
+        row += m ?? '#';
         continue;
       }
       if (x === L.startX && y === L.startY) row += '@';
       else if (y === 0) row += 'E';
-      else if (L.gates.some((g) => g.x === x && g.y === y)) row += '|';
-      else if (L.traps.some((t) => t.x === x && t.y === y)) row += 'T';
-      else if (bugCells.has(i)) row += 'b';
+      else if (m) row += m;
+      else if (L.pads[i]) row += L.pads[i] === PAD_SLASH ? '/' : '\\';
       else if (L.spikes[i]) row += '^';
       else row += L.items[i] ? ch[L.items[i]] : ' ';
     }

@@ -13,12 +13,17 @@ const DT = 1 / 60;
 
 let failures = 0;
 const causes: Record<string, number> = {};
+const seen: Record<string, number> = {};
 
 function play(game: Game, limit: number): void {
   const bot = new Bot(game, 0.3);
   while (game.state !== 'dead' && game.state !== 'won' && game.t < limit) {
     bot.update(DT);
     game.update(DT);
+    for (const e of game.events) {
+      const k = e.type === 'hazard' ? e.kind : e.type;
+      seen[k] = (seen[k] ?? 0) + 1;
+    }
     game.events.length = 0;
   }
 }
@@ -38,6 +43,8 @@ for (let n = 1; n <= STAGES; n++) {
   }
 }
 console.log(`stages 1-${STAGES}: ${STAGES - failures}/${STAGES} cleared with 3 stars, avg ${(totalTime / STAGES).toFixed(1)} s of play each`);
+const k = ['bounce', 'seal', 'trap', 'spring', 'fire', 'puff', 'snake', 'sawwake', 'sawbreak', 'sawout'];
+console.log('the bot survived: ' + k.map((n) => `${seen[n] ?? 0} ${n}`).join(', '));
 
 const daily = new Game({ mode: 'daily', dateKey: todayKey(new Date(2026, 9, 4)) });
 play(daily, 600);
