@@ -13,7 +13,8 @@ XVFB    := $(if $(or $(DISPLAY),$(filter Darwin,$(shell uname))),,xvfb-run -a -s
 .PHONY: help setup doctor godot-import godot-editor godot-run godot-shot \
         export-web export-linux export-windows export-all serve-godot-web \
         web-dev web-build web-preview web-shot rock preview convert assets ai-server clean \
-        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons sfx
+        play-native desktop-selftest hud-kit hud-placeholder selftest world terrain-textures trees props creatures icons sfx \
+        lamp lamp-render
 
 help: ## list commands
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36mmake %-16s\033[0m %s\n", $$1, $$2}'
@@ -27,6 +28,13 @@ setup: ## install Godot + templates, Blender, tools (Linux/WSL), npm deps, impor
 
 doctor: ## check tools, templates, network and keys
 	@bash scripts/doctor.sh
+
+# ----------------------------------------------------------------- lamp ----
+lamp: ## Strata lamp: STEP files + print templates -> lamp/out (needs pip build123d reportlab)
+	cd lamp && python3 strata_lamp.py && python3 templates.py
+
+lamp-render: lamp ## Strata lamp: Cycles renders -> lamp/out/renders (~10 min on CPU)
+	cd lamp && $(BLENDER) -P render.py
 
 # ---------------------------------------------------------------- godot ----
 godot-import: ## (re)import Godot assets headlessly

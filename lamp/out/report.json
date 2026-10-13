@@ -1,0 +1,62 @@
+{
+  "board": [
+    180.0,
+    92.0,
+    12.0
+  ],
+  "layers": [
+    {
+      "layer": "L1",
+      "species": "walnut",
+      "grams": 93.2,
+      "cut_away_pct": 26.7
+    },
+    {
+      "layer": "L2",
+      "species": "pine",
+      "grams": 107.4,
+      "cut_away_pct": 1.7
+    },
+    {
+      "layer": "L3",
+      "species": "walnut",
+      "grams": 66.0,
+      "cut_away_pct": 48.1
+    },
+    {
+      "layer": "L4",
+      "species": "pine",
+      "grams": 42.8,
+      "cut_away_pct": 60.8
+    },
+    {
+      "layer": "L5",
+      "species": "walnut",
+      "grams": 40.9,
+      "cut_away_pct": 67.8
+    }
+  ],
+  "base_g": 350,
+  "arm_g": 156,
+  "remote_g": 25.0,
+  "total_g": 532,
+  "overall_height_mm": 546,
+  "arm_tip_overhang_mm": 96,
+  "channel_length_mm": 781,
+  "lit_length_mm": 745,
+  "embedded_mm": 36,
+  "arm_cg_x_mm": 93.4,
+  "lamp_cg_x_mm": 104.1,
+  "lamp_cg_z_mm": 126.8,
+  "front_tip_edge_x_mm": 10.5,
+  "tip_forward_deg": 36.4,
+  "tip_back_deg": 27.3,
+  "push_at_tip_to_tip_forward_N": 1.17,
+  "former_radius_mm": 116.5,
+  "cove_meets_glue_lines_x": {
+    "z36": 95.7,
+    "z48": 113.2,
+    "z60": 125.0
+  },
+  "cove_tangent_x": 48.2
+}
