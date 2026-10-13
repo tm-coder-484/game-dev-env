@@ -31,7 +31,7 @@ An RGB LED desk lamp made from **five 180 × 92 × 12 mm boards** (the parts in 
 |---|---|
 | `out/strata_lamp_templates.pdf` | **Print at 100 %.** Sheet 1: general arrangement, cut list. Sheets 2-4: 1:1 layer templates and side profile. Sheet 5: 1:1 bending former |
 | `out/step/strata_lamp_assembly.step` | Whole lamp as an assembly. Opens in **Inventor** (File > Open > STEP), Fusion, Onshape and FreeCAD |
-| `out/step/L1_walnut.step` ... `L5_walnut.step`, `arm_channel.step` | Each part on its own |
+| `out/step/L1_walnut.step`, `L2_pine.step`, `L3_walnut.step`, `L4_pine.step`, `L5_walnut.step`, `arm_channel.step` | Each part on its own |
 | `out/strata_lamp.stl` | One-piece mesh (GitHub previews it in 3D) |
 | `out/renders/*.png` | Renders (Blender Cycles) |
 | `out/report.json` | Masses, centre of mass, tipping angles, channel lengths |
@@ -57,7 +57,7 @@ controller, so in that case leave the controller outside on the cable.
 ## 2. Shopping / workshop list
 
 - 5 boards, 180 × 92 × 12 (as supplied)
-- USB RGB LED strip kit with RF remote + inline controller. You need about 0.75 m of strip
+- USB RGB LED strip kit with RF remote + inline controller, at least 0.8 m of strip (most kits are 1 m or more)
 - 1 m bendable aluminium LED channel (17-19 mm wide) with diffuser
 - PVA wood glue, 5-minute epoxy, 4 cork/rubber feet Ø15 × 3, glue stick, masking tape
 - Sandpaper 120/180/240, Danish or hardwax oil
@@ -67,22 +67,25 @@ controller, so in that case leave the controller outside on the cable.
 
 ## 3. Build
 
-1. **Print** `out/strata_lamp_templates.pdf` at 100 % (Actual size). The 100 mm bar on each sheet must measure 100 mm.
+1. **Print** `out/strata_lamp_templates.pdf` at 100 % (Actual size). Measure the black-and-white bar
+   at the bottom of each sheet. It must be exactly 100 mm long, or the printer has scaled the page.
 2. **Mark out.** Glue-stick each layer template onto the *top* face of its board, front edge left.
    Pencil `L1`…`L5` and an arrow to the front on every board's edge.
 3. **Cut before glue-up.** Drill a 6 mm hole inside each window corner, saw between the holes with a
    coping or scroll saw, then file to the line. Test each window with an offcut of channel and the remote.
-   - **L1 (walnut):** trim 5 mm off every edge (bandsaw, then disc-sand to the heavy line). Cut the
+   - **L1 (bottom):** trim 5 mm off every edge (bandsaw, then disc-sand to the heavy line). Cut the
      controller pocket and cable notch. The notch is open at the back edge, so saw straight in from there.
-   - **L2 (pine):** drill the Ø12 hole under the arm, for the LED lead.
-   - **L3, L4:** arm window 7.6 × 19.5 and remote window 8.5 × 41.5.
-   - **L5:** arm window only. The remote window falls in the waste there.
+   - **L2:** drill the Ø12 hole under the arm, for the LED lead.
+   - **L3, L4, L5:** arm window 7.6 × 19.5 and remote window 8.5 × 41.5. On L5 the remote window sits
+     in the waste, but cut it anyway so the alignment stick can pass through during glue-up.
    - Leave the grey "WASTE" areas on. Full boards clamp evenly.
 4. **Glue-up.** Spread thin PVA, then stack L1→L5 with the grain running lengthwise.
    To line the windows up, push a taped 7 × 19 mm stick through the arm windows and a taped 8 × 40 stick
    through the remote windows. Clamp with cauls. Wipe squeeze-out out of the windows *now* with a damp
-   cotton bud. Pull the sticks out after 20 min and leave it overnight.
-5. **True up.** Sand the sides flush, then disc-sand the corners to R14.
+   cotton bud. Pull the sticks out after 20 min and leave it overnight. (*Cauls* are straight scrap
+   strips between the clamps and the work. They spread the pressure.)
+5. **True up.** Sand the sides of L2-L5 flush, then disc-sand their corners to R14. L1 stays 5 mm in,
+   which is the shadow gap.
 6. **Cove.** Glue the side-profile template (sheet 4) on one side. Lay the block on that side and bandsaw
    1 mm outside the line, using a push block. Sand to the line on a spindle sander, or with sandpaper
    on a ~90 mm pipe. This is where the stripes appear. Blend the cove smoothly into the low deck;
@@ -90,20 +93,25 @@ controller, so in that case leave the controller outside on the cable.
 7. **Finish.** Break all edges ~1.5 mm, then sand 120 → 180 → 240. Tape over the arm slot and apply
    2-3 coats of oil. Walnut goes rich brown and pine goes honey.
 8. **Bend the arm** (sheet 5).
-   1. Cut the former from MDF on the solid line and screw it to a scrap board.
-   2. Mark the channel **396 mm** from one end. That is the start of the bend.
-   3. With the open (LED) side against the former, clamp the straight part tangent at the START mark.
-      Pull the channel round slowly to the END mark at 160°. Tape a 6 mm acrylic/MDF strip inside
-      the channel while you bend, so the walls don't kink.
-   4. Let it spring back and compare with the dashed line. Trim the tail to 50 mm and deburr.
+   1. Cut the former from MDF on the solid line (R112.5) and screw it to a scrap board.
+   2. Pick one end of the channel as the *lead end*: it goes into the base. Mark the channel
+      **396 mm** (bend START) and **731 mm** (bend END) from that end. Cut it to **781 mm** long.
+   3. Put the open (LED) side against the former and clamp the straight part so it just touches
+      the former at the START mark. Pull the channel round slowly until the END mark meets the former
+      (160°). Optional: a few layers of thick card taped inside the channel stop the walls kinking.
+   4. Let go. Aluminium springs back a little, so it should settle on the dashed R116.5 line.
+      If it opens wider, bend it a bit further and let go again. Deburr the cut ends with a file.
 9. **LEDs.** Clean inside the channel with alcohol. Stick the strip in starting from the bottom end and
    leave the lead hanging out of the bottom. Cut the strip at a marked cut line near the tip, then clip in the diffuser.
-10. **Wire up.** Feed the lead down the arm slot and through the Ø12 hole into the pocket. Plug it
-    into the controller and lay the USB cable in the back notch.
-11. **Fix the arm.** Dry-fit first. Then put 5-minute epoxy on the bottom 36 mm of the channel (not on
-    the lead) and push it down until it sits on L2. Square it vertical both ways and tape it until set.
-12. **Feet and remote.** Stick the four feet ~18 mm in from the L1 corners. Stand the remote in its slot,
-    then plug into any USB charger or computer.
+10. **Wire up and test.** Feed the lead into the arm slot from the top, then fish it out through the
+    Ø12 hole into the pocket underneath. Push the channel into the slot until it sits on L2. This is the
+    *dry-fit*: no glue yet. Plug the lead into the controller, lay the USB cable in the back notch,
+    plug in and try every remote button.
+11. **Glue the arm.** Lift the channel about 40 mm, keeping the lead in the hole. Put 5-minute epoxy
+    on the bottom 36 mm of the channel, not on the lead, and push it back down. Check it is vertical
+    both ways with a square and tape it in place until the epoxy sets.
+12. **Feet and remote.** Stick the four feet centred 13 mm in from the edges of L1. Stand the remote
+    in its slot, then plug into any USB charger or computer.
 
 ## 4. Numbers
 
@@ -114,9 +122,10 @@ From `out/report.json` (walnut 0.64, pine 0.55 g/cm³, channel + strip + diffuse
 | Overall height | 546 mm |
 | Arm tip overhang past the base | 96 mm |
 | Channel | 781 mm total: 36 in the base, 745 lit |
-| Mass | base 350 g, arm 156 g, total ~530 g |
-| Stability | centre of mass is 94 mm behind the front feet. Tips forward only past 36°, backward past 27° |
+| Mass | base 350 g, arm 156 g, remote 25 g: about 530 g plus controller and feet |
+| Stability | centre of mass is 94 mm behind the front edge of the front feet. It tips forward only if tilted past 36°, backward past 27° |
 | Glue line meets the cove at | 95.7 mm (L3/L4) and 113.2 mm (L4/L5) from the front |
+| Bend | starts 396 mm and ends 731 mm from the lead end. Former cut at R112.5, settles at R116.5 (R120 to the channel centreline) |
 
 ## 5. Changing the design
 

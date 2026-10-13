@@ -41,6 +41,7 @@ class P:
     arm_r: float = 120.0            # bend radius to the channel centreline (bendable profiles: R100 min)
     arm_bend_deg: float = 160.0     # how far the arm curls over
     arm_tail: float = 50.0          # straight tail after the bend
+    springback: float = 4.0         # former is cut this much under the target radius
 
     # --- RF remote (MEASURE-ME) ---
     rem_l: float = 86.0             # 17-key mini RF remote: 86 x 40 x 7 (85 x 40 x 6 on some)
@@ -50,7 +51,7 @@ class P:
     rem_x: float = 105.0            # slot centre (from front)
 
     # --- Inline USB controller (MEASURE-ME) ---
-    ctl_l: float = 50.0             # not published anywhere; fits up to 50 x 22 x 11
+    ctl_l: float = 50.0             # not published anywhere; the pocket fits up to ~58 x 26 x 11
     ctl_w: float = 22.0
     ctl_h: float = 10.0
     cable_d: float = 5.0
@@ -129,6 +130,25 @@ class P:
     @property
     def arm_top_z(self) -> float:
         return self.height + self.arm_rise
+
+    @property
+    def former_target_r(self) -> float:
+        """Radius of the channel's open (LED) face, i.e. what the bend should settle at."""
+        return self.arm_r - self.ch_d / 2
+
+    @property
+    def former_r(self) -> float:
+        """Radius to cut the bending former at (smaller, to allow for springback)."""
+        return self.former_target_r - self.springback
+
+    @property
+    def bend_start(self) -> float:
+        """Distance along the channel from its bottom (lead) end to the start of the bend."""
+        return self.arm_top_z - self.low_z
+
+    @property
+    def bend_end(self) -> float:
+        return self.bend_start + self.arm_r * math.radians(self.arm_bend_deg)
 
     @property
     def arm_center(self) -> tuple:

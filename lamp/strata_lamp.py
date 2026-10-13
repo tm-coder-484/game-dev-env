@@ -182,7 +182,8 @@ def report(layers, chan, rem_body, foot_margin):
         "arm_cg_x_mm": round(ax, 1), "lamp_cg_x_mm": round(cgx, 1), "lamp_cg_z_mm": round(cgz, 1),
         "front_tip_edge_x_mm": front_edge, "tip_forward_deg": round(tip_fwd, 1),
         "tip_back_deg": round(tip_back, 1), "push_at_tip_to_tip_forward_N": round(push_n, 2),
-        "former_radius_mm": round(p.arm_r - p.ch_d / 2, 1),
+        "former_cut_radius_mm": round(p.former_r, 1),
+        "bend_start_mm_from_lead_end": round(p.bend_start), "bend_end_mm_from_lead_end": round(p.bend_end),
         "cove_meets_glue_lines_x": {f"z{int(z)}": round(p.x_at_z(z), 1) for z in (36, 48, 60)},
         "cove_tangent_x": round(p.cove_cx, 1),
     }

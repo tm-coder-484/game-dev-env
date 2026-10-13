@@ -201,9 +201,9 @@ def layer_template(c, i, ox, oy):
         sx, sy = p.arm_slot
         cuts.append((p.arm_x - sx / 2, p.mid_y - sy / 2, p.arm_x + sx / 2, p.mid_y + sy / 2, f"ARM {sx:.1f} x {sy:.1f}"))
         rx, ry = p.rem_slot
-        if p.rem_x - rx / 2 > p.x_at_z(zb):
-            cuts.append((p.rem_x - rx / 2, p.mid_y - ry / 2, p.rem_x + rx / 2, p.mid_y + ry / 2,
-                         f"REMOTE {rx:.1f} x {ry:.1f}"))
+        in_waste = p.rem_x + rx / 2 < p.x_at_z(zb)
+        cuts.append((p.rem_x - rx / 2, p.mid_y - ry / 2, p.rem_x + rx / 2, p.mid_y + ry / 2,
+                     f"REMOTE {rx:.1f} x {ry:.1f}" + (" (for the glue-up stick)" if in_waste else "")))
     c.setLineWidth(0.8)
     for x0, y0, x1, y1, label in cuts:
         s.rect(x0, y0, x1 - x0, y1 - y0, fill=white)
@@ -308,7 +308,7 @@ def page_ga(c, rep):
     c.setPageSize((pw, ph))
     header(c, "STRATA LAMP - general arrangement", f"Five {p.board_l:.0f} x {p.board_w:.0f} x {p.board_t:.0f} boards laminated "
            f"{'-'.join(p.layers)} (W walnut, P yellow pine), bendable aluminium LED channel, RF remote dock.",
-           pw, ph, scale_bar=False)
+           pw, ph)
     # side elevation 1:4
     sc = 0.25
     s = Sheet(c, 40, 30, sc)
@@ -391,7 +391,8 @@ def page_ga(c, rep):
     rows = [("Layer", "Timber", "Before glue-up")]
     ops = {0: f"trim {p.bottom_inset:.0f} all round; controller pocket + cable notch",
            1: f"drill {p.wire_hole_d:.0f} hole under the arm",
-           2: "arm slot + remote slot windows", 3: "arm slot + remote slot windows", 4: "arm slot window; ease top edges"}
+           2: "arm + remote windows", 3: "arm + remote windows",
+           4: "arm + remote windows (remote one is waste; it guides the glue-up stick)"}
     for i in range(p.n):
         rows.append((f"L{i + 1}", NAMES[p.layers[i]].title(), ops.get(i, "arm slot window")))
     y = 106
@@ -403,11 +404,11 @@ def page_ga(c, rep):
         y -= 4.6
     facts = [
         f"Channel: {rep['channel_length_mm']} mm total ({rep['embedded_mm']} in the base, {rep['lit_length_mm']} lit). "
-        f"Bend on a R{p.arm_r - p.ch_d / 2:.0f} former.",
+        f"Bend {p.bend_start:.0f}-{p.bend_end:.0f} mm from the lead end on the R{p.former_r:.1f} former (sheet 5).",
         f"Slots: arm {p.arm_slot[0]:.1f} x {p.arm_slot[1]:.1f} x {p.height - p.low_z:.0f} deep; "
         f"remote {p.rem_slot[0]:.1f} x {p.rem_slot[1]:.1f}.",
         f"Mass approx.: base {rep['base_g']} g, arm {rep['arm_g']} g, total {rep['total_g']} g. Centre of mass "
-        f"{rep['lamp_cg_x_mm'] - rep['front_tip_edge_x_mm']:.0f} mm behind the front feet.",
+        f"{rep['lamp_cg_x_mm'] - rep['front_tip_edge_x_mm']:.0f} mm behind the front feet's front edge.",
         f"Stability: tips forward only past {rep['tip_forward_deg']} deg, backward past {rep['tip_back_deg']} deg.",
         "Glue: PVA, clamp 1 h, cure overnight. Finish: sand 120-180-240, hardwax/Danish oil.",
     ]
@@ -441,8 +442,8 @@ def page_last_layer(c, n):
 def page_former(c, n):
     pw, ph = landscape(A4)
     c.setPageSize((pw, ph))
-    rf = p.arm_r - p.ch_d / 2
-    cut = rf - 4.0
+    rf = p.former_target_r
+    cut = p.former_r
     header(c, "STRATA LAMP - 1:1 bending former",
            f"Cut from 18 mm MDF/ply on the SOLID line (R{cut:.1f}), screw to a scrap board, bend the channel round it "
            f"with the LED (open) side against the former.", pw, ph)
@@ -465,13 +466,13 @@ def page_former(c, n):
     s.line(cut * 0.9, 0, rf + 8, 0)
     c.setStrokeColor(black)
     s.text(cut * 0.88, 5, "START of bend", 8, "r", ACCENT, True)
-    s.text(cut * 0.88, 1, f"{p.arm_top_z - p.low_z:.0f} mm from the bottom end of the channel", 7, "r", ACCENT)
+    s.text(cut * 0.88, 1, f"{p.bend_start:.0f} mm from the lead (bottom) end", 7, "r", ACCENT)
     ex, ey = cut * 0.86 * math.cos(b), cut * 0.86 * math.sin(b)
     s.text(ex + 2, ey + 2, f"END of bend ({p.arm_bend_deg:.0f} deg)", 8, "l", ACCENT, True)
-    s.text(ex + 2, ey - 2.5, f"then {p.arm_tail:.0f} mm straight tail", 7, "l", ACCENT)
+    s.text(ex + 2, ey - 2.5, f"{p.bend_end:.0f} mm from the lead end, then {p.arm_tail:.0f} mm tail", 7, "l", ACCENT)
     s.text(0, 30, f"Dashed: R{rf:.1f} = where the channel face should settle after springback", 7.5, "c", GREY)
     s.text(0, 24, "If it opens up more than the dashed line, push it a little past and let go again.", 7.5, "c", GREY)
-    s.text(0, 15, "Tip: tape a 6 mm acrylic or MDF strip inside the channel while bending - stops the walls kinking.", 7.5, "c", GREY)
+    s.text(0, 15, "Optional: a few layers of thick card taped inside the channel stop the walls kinking.", 7.5, "c", GREY)
     footer(c, pw, n)
 
 
