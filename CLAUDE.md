@@ -26,6 +26,8 @@ systems, debug); the old starter sandbox is `scenes/main.tscn`.
   OpenRouter image model (`--model <id or fragment>`). Use `--dry-run` to check a request without spending money.
   `ui-kit` writes `godot/assets/ui/**`, which both games' HUDs load. `--placeholder` restores the vector art.
 - `make ai-server`: backend for the in-game LLM NPC (needs `OPENROUTER_API_KEY`).
+- `make lamp` / `make lamp-render`: the Strata LED lamp woodwork project in `lamp/` (build123d → STEP for Inventor,
+  1:1 PDF templates, Cycles renders). All dimensions live in `lamp/params.py`; `lamp/README.md` is the build guide.
 - `node tools/desktop/desk.mjs ...` or the `desktop_*` MCP tools: computer use for native apps on a virtual display
   (`launch`, `shot`, `click`, `look`, `key --hold`, `type`, `windows`, `logs`, `record`, `kill`). Screenshots go to `build/shots/desktop/`.
 
