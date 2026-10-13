@@ -52,7 +52,9 @@
   "tip_forward_deg": 36.4,
   "tip_back_deg": 27.3,
   "push_at_tip_to_tip_forward_N": 1.17,
-  "former_radius_mm": 116.5,
+  "former_cut_radius_mm": 112.5,
+  "bend_start_mm_from_lead_end": 396,
+  "bend_end_mm_from_lead_end": 731,
   "cove_meets_glue_lines_x": {
     "z36": 95.7,
     "z48": 113.2,

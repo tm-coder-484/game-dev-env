@@ -19,6 +19,7 @@ sys.path.insert(0, HERE)
 from params import DEFAULT as p  # noqa: E402
 
 OUT = os.path.join(HERE, "out")
+STAMP = "2026-10-13T00:00:00"  # fixed, so rebuilding unchanged parts gives identical STEP files
 SPECIES = {"W": ("walnut", Color(0.33, 0.20, 0.12)), "P": ("pine", Color(0.90, 0.72, 0.45))}
 
 
@@ -202,13 +203,13 @@ def main():
     ft, foot_margin = feet()
 
     for s in layers:
-        export_step(s, os.path.join(OUT, "step", f"{s.label}.step"), unit=Unit.MM)
-    export_step(chan, os.path.join(OUT, "step", "arm_channel.step"), unit=Unit.MM)
+        export_step(s, os.path.join(OUT, "step", f"{s.label}.step"), unit=Unit.MM, timestamp=STAMP)
+    export_step(chan, os.path.join(OUT, "step", "arm_channel.step"), unit=Unit.MM, timestamp=STAMP)
     base = Compound(children=layers)
     base.label = "base"
     asm = Compound(children=[base, chan, diffuser, Compound(children=rem, label="remote"), ctl, ft])
     asm.label = "strata_lamp"
-    export_step(asm, os.path.join(OUT, "step", "strata_lamp_assembly.step"), unit=Unit.MM)
+    export_step(asm, os.path.join(OUT, "step", "strata_lamp_assembly.step"), unit=Unit.MM, timestamp=STAMP)
 
     stl = {s.label: s for s in layers}
     stl.update({"channel": chan, "diffuser": diffuser, "controller": ctl, "feet": ft})
@@ -218,13 +219,13 @@ def main():
         export_stl(s, os.path.join(OUT, "stl", f"{name}.stl"), tolerance=0.02, angular_tolerance=0.08)
 
     # one-piece model for quick previews (GitHub shows .stl files in 3D)
-    export_stl(Compound(children=layers + [chan, rem[0], ft]), os.path.join(OUT, "strata_lamp.stl"),
+    export_stl(Compound(layers + [chan, rem[0], ft]), os.path.join(OUT, "strata_lamp.stl"),
                tolerance=0.05, angular_tolerance=0.15)
 
     r = report(layers, chan, rem[0], foot_margin)
     with open(os.path.join(OUT, "report.json"), "w") as f:
         json.dump(r, f, indent=2)
-    bb = asm.bounding_box()
+    bb = asm.bounding_box(optimal=True)
     print(f"Assembly bbox x {bb.min.X:.1f}..{bb.max.X:.1f}  y {bb.min.Y:.1f}..{bb.max.Y:.1f}  "
           f"z {bb.min.Z:.1f}..{bb.max.Z:.1f}")
     print(json.dumps(r, indent=2))
